@@ -1,4 +1,4 @@
-from walrus import *
+from peewee import *
 from bcrypt import hashpw, gensalt
 database = PostgreSqlDatabase()
 
@@ -51,6 +51,7 @@ class House(BaseModel):
     garden_area = IntegerField() # 0 if no garden
     surface_area = IntegerField() # square meters
     garage_surface = IntegerField() # 0 if no garage
+
 #    proximity_to_highway = IntegerField() # in meters
 #    proximity_to_train_station = IntegerField() # in meters
 #    travel_time_to_leuven_by_car = IntegerField() # in minutes
@@ -64,6 +65,15 @@ class CriterionScore(BaseModel):
     score = IntegerField() # range 0-10
     comment = TextField()
 
+
 class Appointment(BaseModel):
     house = ForeignKeyField(House, related_name='appointments')
+    dt = DateTimeField()
+
+
+class UserAvailability(BaseModel):
+    """
+    Book appointments only when all users are available
+    """
+    user = ForeignKeyField(User, related_name='available_at')
     dt = DateTimeField()

@@ -13,6 +13,13 @@ def login_page():
         pass
 
 
+def loan_cost_per_month(price, interest_rate=0.024):
+    return {"interest_rate": interest_rate,
+     "amounts": {15: 15_y,
+                 20: 20_y}
+     }
+
+
 @app.route('/houses/')
 @login_required
 def houses_list():
