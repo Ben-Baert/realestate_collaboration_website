@@ -1,12 +1,16 @@
 from peewee import *
 from bcrypt import hashpw, gensalt
+from flask.ext.login import UserMixin
+
 database = PostgreSqlDatabase()
+
 
 class BaseModel(Model):
     class Meta:
         database = database
 
-class User(BaseModel):
+
+class User(BaseModel, UserMixin):
     username = CharField(min_length=3,
                          max_length=30)
     password = CharField(min_length=6)
@@ -29,6 +33,7 @@ class Criterion(BaseModel):
 
 class Seller(BaseModel):
     name = CharField(max_length=30)
+    website = Charfield()
     telephone_number = CharField()
     real_estate_agent = BooleanField()
 
@@ -36,7 +41,9 @@ class Seller(BaseModel):
 class House(BaseModel):
     title = CharField(max_length=50)
     seller = ForeignKeyField(Seller, related_name='houses')
-    
+    price = IntegerField()
+    land_only = BooleanField(default=False)
+
     street = CharField()
     house_nr = CharField()
     postal_code = CharField()
@@ -52,6 +59,7 @@ class House(BaseModel):
     surface_area = IntegerField() # square meters
     garage_surface = IntegerField() # 0 if no garage
 
+#    attached
 #    proximity_to_highway = IntegerField() # in meters
 #    proximity_to_train_station = IntegerField() # in meters
 #    travel_time_to_leuven_by_car = IntegerField() # in minutes
