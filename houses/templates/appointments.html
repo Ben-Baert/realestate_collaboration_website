@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="row">
+    <   div class="col-md-12">
+            {% call _modal.modal(title="Add new appointment", launch_text="Add new appointment", form=True, show=show_modal) %}
+                {{ _form.render(form, action_url=url_for('appointments')) }}
+            {% endcall %}
+        </div>
+    </div>
+    <table class="table">
+        <thead>
+            <th>Date</th>
+            <th>Time</th>
+            <th>House</th>  
+        </thead>
+        <tbody>
+            {% for appointment in appointments %}
+            <tr>
+                <td>{{ appointment.readable_date() }}</td>
+                <td>{{ appointment.readable_time() }}</td>
+                <td>{{ appointment.house.address() }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+{% endblock %}

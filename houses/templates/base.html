@@ -1,0 +1,33 @@
+{% import "_form.html" as _form %}
+{% import "_modal.html" as _modal %}
+
+<html>
+    <head>
+        <title>Houses</title>
+        <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-y3tfxAZXuh4HwSYylfB+J125MxIs6mR5FOHamPBG064zB+AFeWH94NdvaCBm8qnd" crossorigin="anonymous">
+        <style>
+        body {
+              padding-top: 5rem;
+            }
+            .main {
+              padding: 3rem 1.5rem;
+              text-align: center;
+            }
+
+        </style>
+        {% block css %}
+        {% endblock %}
+    </head>
+    <body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/js/bootstrap.min.js" integrity="sha384-vZ2WRJMwsjRMW/8U7i6PWi6AlO1L79snBrmgiDpgIWJ82z8eA5lenwvxbMV1PAh7" crossorigin="anonymous"></script>
+    {% include "navbar.html" %}
+        <div class="container">
+            <div class="main">
+                {% include "messages.html" %}
+                {% block content %}
+                {% endblock %}
+            </div> 
+        </div>
+    </body>
+</html>

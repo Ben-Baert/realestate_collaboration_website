@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        {% call _modal.modal(title="Add new criterion", launch_text="Add new criterion", form=True, show=show_modal) %}
+            {{ _form.render_form(form, action_url=url_for('criteria')) }}
+        {% endcall %}
+    </div>
+</div>
+    <table class="table">
+        <thead>
+            <th>Name</th>
+            <th>Importance</th>
+            <th>Dealbreaker</th>
+            <th>Formula</th>
+            <th>Comments</th>
+            <th></th>
+            <th></th>
+        </thead>
+        <tbody>
+            {% for criterion in criteria %}
+                <tr>
+                    <td>{{ criterion.name }}</td>
+                    <td>{{ criterion.importance }}</td>
+                    <td>{{ criterion.dealbreaker }}</td>
+                    <td>{{ criterion.formula }}</td>
+                    <td>{{ criterion.comments }}</td>
+                    <td>Edit</td>
+                    <td>Delete</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

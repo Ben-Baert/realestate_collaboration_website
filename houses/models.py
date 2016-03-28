@@ -1,64 +1,161 @@
-from peewee import *
-from bcrypt import hashpw, gensalt
-from flask.ext.login import UserMixin
+from datetime import datetime
+from flask.ext.login import UserMixin, current_user
+from peewee import (SqliteDatabase,
+                    Model,
+                    CharField,
+                    IntegrityError,
+                    BooleanField,
+                    IntegerField,
+                    TextField,
+                    FloatField,
+                    ForeignKeyField,
+                    DateTimeField)
+from .app import bcrypt
 
-database = PostgreSqlDatabase()
+#PrimaryKeyField(primary_key=True), 'id'
+database = SqliteDatabase('houses.db')
+
+
+class UserNotAvailableError(Exception):
+    pass
 
 
 class BaseModel(Model):
+    def readable_date(self):
+        return self.dt.format("%d/%m/%Y")
+
+    def readable_time(self):
+        return self.dt.format("%H:%M")
+
+    @classmethod
+    def tables(cls):
+        children = []
+
+        for subclass in cls.__subclasses__():
+            children.append(subclass)
+            children.extend(subclass.tables())
+
+        return children
+
     class Meta:
         database = database
 
 
 class User(BaseModel, UserMixin):
-    username = CharField(min_length=3,
+    username = CharField(unique=True,
                          max_length=30)
-    password = CharField(min_length=6)
-    email = CharField()
-    
-    def set_password(self, plaintext_password):
-        self.password = hashpw(plaintext_password, gensalt())
+    password = CharField()
+    email = CharField(null=True)
 
-    def verify_password(self, plaintext_password):
-        return hashpw(self.password, hashpw(plaintext_password, gensalt()))
+    @classmethod
+    def create(cls, **kwargs):
+        hashed_password = bcrypt.generate_password_hash(kwargs["password"])
+        del kwargs["password"]
+
+        user = cls(password=hashed_password, **kwargs)
+
+        try:
+            user.save()
+        except IntegrityError:
+            raise UserNotAvailableError(
+                """
+                The user you attempted to create already exists
+                """)
+
+    def set_password(self, password):
+        self.password = bcrypt.generate_password_hash(password)
+        self.save()
+
+    def verify_password(self, password):
+        return bcrypt.check_password_hash(self.password, password)
+
+    @staticmethod
+    def others():
+        return User.select().where(User.id != current_user.id)
 
 
 class Criterion(BaseModel):
-    title = CharField(max_length=30)
-    description = TextField()
-    dealbreaker = BooleanField(default=False) # if set to True, any house with score of 0
-                                              # on this criterion will be rejected
-    importance = IntegerField() # range 0-10
+    name = CharField(max_length=30)
+    dealbreaker = BooleanField(default=False,
+                               help_text=("""
+        If True, any house with a score == 0 will be rejected.
+        """))
+    importance = IntegerField(default=5)
+    formula = TextField()
+    explanation = TextField(null=True)
+
+    class Meta:
+        order_by = ('-dealbreaker', '-importance')
 
 
 class Seller(BaseModel):
     name = CharField(max_length=30)
-    website = Charfield()
-    telephone_number = CharField()
-    real_estate_agent = BooleanField()
+    website = CharField(null=True)
+    telephone_number = CharField(null=True)
+    real_estate_agent = BooleanField(null=True)
+
+    def __unicode__(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.name
 
 
 class House(BaseModel):
-    title = CharField(max_length=50)
     seller = ForeignKeyField(Seller, related_name='houses')
     price = IntegerField()
     land_only = BooleanField(default=False)
+    sold = BooleanField(default=False)
 
-    street = CharField()
-    house_nr = CharField()
-    postal_code = CharField()
+    street = CharField(null=True)
+    house_nr = CharField(null=True)
+    postal_code = CharField(null=True)
     town = CharField()
-    lat = FloatField()
-    lng = FloatField()
-    photos = ListField()
+    lat = FloatField(null=True)
+    lng = FloatField(null=True)
+
+    immo_url = CharField(null=True)
+    realo_url = CharField(null=True)
+    immoweb_url = CharField(null=True)
+    kapaza_url = CharField(null=True)
 
     contacted = BooleanField(default=False)
     visited = BooleanField(default=False)
-    inhabitable_area = IntegerField() # in square meters
-    garden_area = IntegerField() # 0 if no garden
-    surface_area = IntegerField() # square meters
-    garage_surface = IntegerField() # 0 if no garage
 
+    def address(self):
+        if not self.street:
+            return self.town
+        if not self.house_nr:
+            return self.street + " " + self.town
+        return self.street + " " + self.house_nr + " " + self.town
+
+    def score(self):
+        """
+        Calculates the score based on the items that have been filled in
+        for this particular house. Obviously, the more items filled in,
+        the more accurate the result will be.
+
+        This is not very efficient, but will be refactored
+        (or so I hope, at least) later if necessary.
+        """
+        criteria = (CriterionScore.select(
+                    CriterionScore.score, CriterionScore.importance)
+                    .where(CriterionScore.house == self.id))
+        max_score = sum(10 * criterion.importance for criterion in criteria)
+        actual_score = sum(criterion.score * criterion.importance
+                           for criterion in criteria)
+        return actual_score / max_score
+
+
+    """
+    inhabitable_area = IntegerField()  # in square meters
+    garden_area = IntegerField()  # 0 if no garden
+    surface_area = IntegerField()  # square meters
+    garage_surface = IntegerField()  # 0 if no garage
+"""
 #    attached
 #    proximity_to_highway = IntegerField() # in meters
 #    proximity_to_train_station = IntegerField() # in meters
@@ -66,22 +163,62 @@ class House(BaseModel):
 #    travel_time_to_leuven_by_pt = IntegerField() # in minutes
 #    travel_time_to_brussels_by_car = IntegerField() # in minutes
 #    proximity_of_forest = IntegerField()
+#    proximity_to_pesticide_field = IntegerField()
+
+
+class Picture(BaseModel):
+    house = ForeignKeyField(House, related_name='pictures')
+    url = CharField()
+    description = CharField(null=True)
 
 class CriterionScore(BaseModel):
     criterion = ForeignKeyField(Criterion, related_name='houses')
     house = ForeignKeyField(House, related_name='criterion_scores')
-    score = IntegerField() # range 0-10
+    score = IntegerField()  # range 0-10
     comment = TextField()
 
 
 class Appointment(BaseModel):
-    house = ForeignKeyField(House, related_name='appointments')
+    house = ForeignKeyField(House, related_name='appointments') #  in case of multiple appointments
     dt = DateTimeField()
+
+    class Meta:
+        order_by = ('dt',)
+
+
+class CustomBase(BaseModel):
+    user = ForeignKeyField(User)
+    house = ForeignKeyField(House)
+    dt = DateTimeField(default=datetime.now())
+    read = BooleanField(default=False)
+    body = TextField(null=True)
+
+    @classmethod
+    def create(cls, **kwargs):
+        obj = cls()
+        obj.user = current_user
+        for name, value in kwargs.items():
+            setattr(obj, name, value)
+        obj.save()
+        return obj
+
+    class Meta:
+        order_by = ('read', '-dt')
+
+
+class Message(CustomBase):
+    pass
+
+
+class Notification(CustomBase):
+    category = CharField(choices=[('appointment', 'New appointment'),
+                                  ('house', 'New house'),
+                                  ('message', 'New message')])
 
 
 class UserAvailability(BaseModel):
     """
     Book appointments only when all users are available
     """
-    user = ForeignKeyField(User, related_name='available_at')
+    user = ForeignKeyField(User, related_name='available')
     dt = DateTimeField()

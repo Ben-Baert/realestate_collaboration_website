@@ -1,0 +1,23 @@
+{% set navigation_bar = [
+         'houses',
+         'sellers',
+         'criteria',
+         'appointments',
+         'notifications',
+         'settings',
+         'logout'
+        ] -%}
+{% set active_page = active_page|default('index') -%}
+
+<nav class="navbar navbar-fixed-top navbar-dark bg-inverse">
+  <a class="navbar-brand" href="{{url_for('home')}}">Houses site</a>
+  {% if current_user.is_authenticated %}
+  <ul class="nav navbar-nav">
+  {% for element in navigation_bar %}
+    <li class="nav-item {% if request.path == url_for(element) %} active {% endif %}">
+      <a class="nav-link" href="{{ url_for(element) }}">{{ element | title }} {% if request.path == url_for(element) %}<span class="sr-only">(current)</span>{% endif %}</a>
+    </li>
+    {% endfor %}       
+  </ul>
+  {% endif %}
+</nav>

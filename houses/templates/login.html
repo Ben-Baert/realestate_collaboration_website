@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% import "_form.html" as _form %}
+
+{% block content %}
+    {{ _form.render(form, action_url=url_for('login')) }}
+{% endblock %}

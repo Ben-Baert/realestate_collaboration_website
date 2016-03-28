@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "_housecard.html" as housecard %}
+
+{% block css %}
+<style>
+.album {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+  background-color: #f7f7f7;
+}
+
+.card {
+  float: left;
+  width: 33.333%;
+  padding: .75rem;
+  margin-bottom: 2rem;
+  border: 0;
+}
+
+.card > img {
+  margin-bottom: .75rem;
+  height: auto; 
+  width: auto; 
+  max-width: 100%; 
+  max-height: 280px;
+}
+
+.card > .carousel {
+  margin-bottom: .75rem;
+  height: auto; 
+  width: auto; 
+  max-width: 100%; 
+  max-height: 280px;
+}
+
+.card > .overlay { 
+  color:#fff;
+  position:absolute;
+  z-index:12;
+  top:55%;
+  left:0;
+  width:100%;
+  text-align:center;
+}
+
+.card-text {
+  font-size: 85%;
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-md-12">
+        {% call _modal.modal(title="Add new house", launch_text="Add new house", form=True, show=show_modal) %}
+            {{ _form.render(form, action_url=url_for('houses')) }}
+        {% endcall %}
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <div class="album text-muted">
+    <div class="container">
+        <div class="row">
+            {% for house in houses %}
+                {{ housecard.render(house) }}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+    </div>
+</div>
+
+{% endblock %}

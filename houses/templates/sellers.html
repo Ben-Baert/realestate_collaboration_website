@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        {% call _modal.modal(title="Add new seller", launch_text="Add new seller", form=True, show=show_modal) %}
+            {{ _form.render(form, action_url=url_for('sellers')) }}
+        {% endcall %}
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <table class="table">
+    <thead>
+        <th>
+            Name
+        </th>
+        <th>
+            Phone number
+        </th>
+        <th></th>
+        <th></th>
+    </thead>
+    <tbody>
+    {% for seller in sellers %}
+        <tr>
+            <td>
+                <a href="{{seller.website}}">{{seller.name}}</a> 
+            </td>
+            <td>
+                {{seller.telephone_number}}
+            </td>
+            <td>
+               <a href="{{ url_for('seller', id=seller.id) }}">edit</a>
+            </td>
+            <td>
+                <a href="{{ url_for('delete_seller', id=seller.id) }}">delete</a>
+            </td>
+        </li>
+    {% endfor %}
+    </tbody>
+    </table>
+    </div>
+</div>
+    
+{% endblock %}

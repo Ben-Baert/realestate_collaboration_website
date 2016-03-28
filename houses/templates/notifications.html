@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+    <table class="table">
+        <thead>
+            <th>
+                Category
+            </th>
+            <th>Read</th>
+            <th>
+                Datetime
+            </th>
+            <th>
+                Message
+            </th>
+        </thead>
+        <tbody>
+            {% for notification in notifications %}
+                <tr>
+                    <td>{{notification.category}}</td>
+                    <td>{{notification.read}}</td>
+                    <td>{{notification.dt}}</td>
+                    <td>{{notification.body|safe}}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

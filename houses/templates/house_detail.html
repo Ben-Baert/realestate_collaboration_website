@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_form.html" as _form %}
+{% import "_carousel.html" as _carousel %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="row">
+            <div class="col-md-12">
+                Carousel
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="row">
+            <div class="col-md-9">{{ house.town }}</div>
+            <div class="col-md-3">€{{ '{0:,}'.format(house.price | int) }}</br></div>      
+        </div>
+        <div class="row">
+            <div class="col-md-12">{{ _carousel.render(house.pictures, _id=house.id, indicators=True) }}</div>
+        </div>
+        <div class="row">
+            <div>
+                <div class="col-md-12">
+                    {% for message in house.messages %}
+                        <div class="row">
+                            <div class="col-md-3">
+                                {{ message.author.username }}
+                            </div>
+                            <div class="col-md-9">
+                                {{ message.body }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                        <div class="row">
+                            <div class="col-md-12">
+                                {% call _form.render(message_form, action_url=url_for('house_detail', id=house.id)) %}
+                                    {{ _form.render_field(message_form.body, label_visible=False) }}
+                                {% endcall %}
+                            </div>
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
