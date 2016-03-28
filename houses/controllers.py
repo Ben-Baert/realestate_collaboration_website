@@ -84,22 +84,22 @@ def houses():
 
         for picture in form.pictures.entries:
             Picture.create(
-                house=house.id,
+                house=house._id,
                 description=picture.data['description'],
                 url=picture.data['url'])
 
         flash("House created")
 
-        for user in User.select().where(User.id != current_user.id):
+        for user in User.select().where(User._id != current_user._id):
             notification = Notification.create(user=user,
                                                house=house,
                                                category='house')
             notification.body = """
             <a href="/notification/{}/">New house in {}</a> added by {}
-            """.format(str(notification.id), house.town, current_user.username)
+            """.format(str(notification._id), house.town, current_user.username)
             notification.save()
 
-        return redirect(url_for('house_detail', id=house.id))
+        return redirect(url_for('house_detail', id=house._id))
 
     elif request.method == "POST":  # submitted but errors
         show_modal = True
@@ -115,12 +115,12 @@ def houses():
 @app.route('/houses/<int:_id>/', methods=["GET", "POST"])
 @login_required
 def house_detail(_id):
-    house = House.get(House.id == _id)
+    house = House.get(House._id == _id)
     houses = House.select()
 
     message_form = MessageForm(house=house)
     if message_form.validate_on_submit():
-        message_form.create_object(Message, house=_id, author=current_user.id)
+        message_form.create_object(Message, house=_id, author=current_user._id)
         return redirect(url_for('houses', _id=_id))
 
     return render_template('house_detail.html',
@@ -129,10 +129,10 @@ def house_detail(_id):
                             message_form=message_form)
 
 
-@app.route('/notification/<int:id>/')
-def notification(id):
+@app.route('/notification/<int:_id>/')
+def notification(_id):
     url_endpoints = {'house': 'house_detail'}
-    notification_object = Notification.get(Notification.id == id)
+    notification_object = Notification.get(Notification._id == id)
     notification_object.read = True
     notification_object.save()
     return redirect(url_for(url_endpoints[notification_object.category], id=notification_object.object_id))
@@ -160,13 +160,13 @@ def sellers():
                            show_modal=show_modal)
 
 
-@app.route('/seller/<int:id>/', methods=['GET', 'POST'])
+@app.route('/seller/<int:_id>/', methods=['GET', 'POST'])
 @login_required
-def seller(id):
+def seller(_id):
     try:
-        seller = Seller.get(id=id)
+        seller = Seller.get(_id=_id)
     except DoesNotExist:
-        flash("Seller with id: {} does not exist!".format(id))
+        flash("Seller with _id: {} does not exist!".format(_id))
         return redirect(url_for('sellers'))
 
     form = SellerForm(obj=seller)
@@ -186,13 +186,13 @@ def seller(id):
                            show_modal=show_modal)
 
 
-@app.route('/delete_seller/<int:id>/')
+@app.route('/delete_seller/<int:_id>/')
 @login_required
-def delete_seller(id):
+def delete_seller(_id):
     try:
-        seller = Seller.get(id=id)
+        seller = Seller.get(_id=_id)
     except DoesNotExist:
-        flash("Seller with id: {} does not exist!".format(id))
+        flash("Seller with _id: {} does not exist!".format(_id))
         return redirect(url_for('sellers'))
 
     seller.delete_instance()
@@ -239,7 +239,7 @@ def appointments():
 @app.route("/notifications/")
 @login_required
 def notifications():
-    notifications = Notification.select().where(Notification.user == current_user.id)
+    notifications = Notification.select().where(Notification.user == current_user._id)
 
     return render_template('notifications.html',
                            notifications=notifications)

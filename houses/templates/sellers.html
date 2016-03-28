@@ -31,10 +31,10 @@
                 {{seller.telephone_number}}
             </td>
             <td>
-               <a href="{{ url_for('seller', id=seller.id) }}">edit</a>
+               <a href="{{ url_for('seller', id=seller._id) }}">edit</a>
             </td>
             <td>
-                <a href="{{ url_for('delete_seller', id=seller.id) }}">delete</a>
+                <a href="{{ url_for('delete_seller', id=seller._id) }}">delete</a>
             </td>
         </li>
     {% endfor %}

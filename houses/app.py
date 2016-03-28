@@ -23,8 +23,8 @@ Bootstrap(app)
 
 
 @login_manager.user_loader
-def load_user(id):
-    return User.get(id=id)
+def load_user(_id):
+    return User.get(_id=_id)
 
 from .models import BaseModel, database, UserNotAvailableError
 # This hook ensures that a connection is opened to handle any queries

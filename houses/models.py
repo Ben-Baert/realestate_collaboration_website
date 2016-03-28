@@ -9,10 +9,11 @@ from peewee import (SqliteDatabase,
                     TextField,
                     FloatField,
                     ForeignKeyField,
-                    DateTimeField)
+                    DateTimeField,
+                    PrimaryKeyField)
 from .app import bcrypt
 
-#PrimaryKeyField(primary_key=True), 'id'
+
 database = SqliteDatabase('houses.db')
 
 
@@ -21,6 +22,8 @@ class UserNotAvailableError(Exception):
 
 
 class BaseModel(Model):
+    _id = PrimaryKeyField(primary_key=True)  # avoid shadowing built-in id
+
     def readable_date(self):
         return self.dt.format("%d/%m/%Y")
 
@@ -71,7 +74,7 @@ class User(BaseModel, UserMixin):
 
     @staticmethod
     def others():
-        return User.select().where(User.id != current_user.id)
+        return User.select().where(User._id != current_user._id)
 
 
 class Criterion(BaseModel):
@@ -105,6 +108,9 @@ class Seller(BaseModel):
 
 
 class House(BaseModel):
+    class Meta:
+        order_by = ('-sold',)
+
     seller = ForeignKeyField(Seller, related_name='houses')
     price = IntegerField()
     land_only = BooleanField(default=False)
@@ -126,11 +132,9 @@ class House(BaseModel):
     visited = BooleanField(default=False)
 
     def address(self):
-        if not self.street:
-            return self.town
-        if not self.house_nr:
-            return self.street + " " + self.town
-        return self.street + " " + self.house_nr + " " + self.town
+        return ' '.join(item
+                        for item in [self.street, self.house_nr, self.town]
+                        if item)
 
     def score(self):
         """
@@ -143,33 +147,18 @@ class House(BaseModel):
         """
         criteria = (CriterionScore.select(
                     CriterionScore.score, CriterionScore.importance)
-                    .where(CriterionScore.house == self.id))
+                    .where(CriterionScore.house == self._id))
         max_score = sum(10 * criterion.importance for criterion in criteria)
         actual_score = sum(criterion.score * criterion.importance
                            for criterion in criteria)
         return actual_score / max_score
 
 
-    """
-    inhabitable_area = IntegerField()  # in square meters
-    garden_area = IntegerField()  # 0 if no garden
-    surface_area = IntegerField()  # square meters
-    garage_surface = IntegerField()  # 0 if no garage
-"""
-#    attached
-#    proximity_to_highway = IntegerField() # in meters
-#    proximity_to_train_station = IntegerField() # in meters
-#    travel_time_to_leuven_by_car = IntegerField() # in minutes
-#    travel_time_to_leuven_by_pt = IntegerField() # in minutes
-#    travel_time_to_brussels_by_car = IntegerField() # in minutes
-#    proximity_of_forest = IntegerField()
-#    proximity_to_pesticide_field = IntegerField()
-
-
 class Picture(BaseModel):
     house = ForeignKeyField(House, related_name='pictures')
     url = CharField()
     description = CharField(null=True)
+
 
 class CriterionScore(BaseModel):
     criterion = ForeignKeyField(Criterion, related_name='houses')
@@ -179,7 +168,7 @@ class CriterionScore(BaseModel):
 
 
 class Appointment(BaseModel):
-    house = ForeignKeyField(House, related_name='appointments') #  in case of multiple appointments
+    house = ForeignKeyField(House, related_name='appointments')
     dt = DateTimeField()
 
     class Meta:

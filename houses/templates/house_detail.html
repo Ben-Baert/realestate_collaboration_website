@@ -17,7 +17,7 @@
             <div class="col-md-3">€{{ '{0:,}'.format(house.price | int) }}</br></div>      
         </div>
         <div class="row">
-            <div class="col-md-12">{{ _carousel.render(house.pictures, _id=house.id, indicators=True) }}</div>
+            <div class="col-md-12">{{ _carousel.render(house.pictures, _id=house._id, indicators=True) }}</div>
         </div>
         <div class="row">
             <div>
@@ -34,7 +34,7 @@
                     {% endfor %}
                         <div class="row">
                             <div class="col-md-12">
-                                {% call _form.render(message_form, action_url=url_for('house_detail', id=house.id)) %}
+                                {% call _form.render(message_form, action_url=url_for('house_detail', id=house._id)) %}
                                     {{ _form.render_field(message_form.body, label_visible=False) }}
                                 {% endcall %}
                             </div>

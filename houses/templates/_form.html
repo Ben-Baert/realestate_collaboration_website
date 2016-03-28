@@ -1,7 +1,7 @@
 {% macro render_field(field, label_visible=true) -%}
      <fieldset class="form-group {% if field.errors %}has-error{% endif %} {{ kwargs.pop('class_', '') }}">
         {% if field.type != 'HiddenField' and field.type !='CSRFTokenField' and label_visible %}
-            <label for="{{ field.id }}">{{ field.label }}</label>
+            <label for="{{ field._id }}">{{ field.label }}</label>
         {% endif %}
         {{ field(class_='form-control', **kwargs) }}
         {% if field.errors %}

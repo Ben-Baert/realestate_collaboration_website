@@ -1,0 +1,14 @@
+    """
+    inhabitable_area = IntegerField()  # in square meters
+    garden_area = IntegerField()  # 0 if no garden
+    surface_area = IntegerField()  # square meters
+    garage_surface = IntegerField()  # 0 if no garage
+"""
+#    attached
+#    proximity_to_highway = IntegerField() # in meters
+#    proximity_to_train_station = IntegerField() # in meters
+#    travel_time_to_leuven_by_car = IntegerField() # in minutes
+#    travel_time_to_leuven_by_pt = IntegerField() # in minutes
+#    travel_time_to_brussels_by_car = IntegerField() # in minutes
+#    proximity_of_forest = IntegerField()
+#    proximity_to_pesticide_field = IntegerField()
