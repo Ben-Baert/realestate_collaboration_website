@@ -23,6 +23,7 @@ class UserNotAvailableError(Exception):
 
 class BaseModel(Model):
     _id = PrimaryKeyField(primary_key=True)  # avoid shadowing built-in id
+                                             # and/or unnecessary ambiguity
 
     def readable_date(self):
         return self.dt.format("%d/%m/%Y")
