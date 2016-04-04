@@ -1,17 +1,20 @@
+from functools import wraps
 from flask import (redirect,
                    request,
                    url_for,
                    flash,
                    g,
-                   render_template)
-from peewee import DoesNotExist
+                   render_template,
+                   abort)
+from peewee import DoesNotExist, SelectQuery
 from flask.ext.login import (login_required,
                              login_user,
                              current_user,
-                             logout_user)
-from .app import app
+                             logout_user,
+                             current_app)
+from .app import (app,
+                  celery)
 from .forms import (LoginForm,
-                    SellerForm,
                     HouseForm,
                     SettingsForm,
                     CriterionForm,
@@ -19,12 +22,48 @@ from .forms import (LoginForm,
                     AppointmentForm)
 from .models import (User,
                      House,
-                     Seller,
                      Notification,
                      Criterion,
-                     Picture,
                      Message,
-                     Appointment)
+                     Appointment,
+                     HouseInformation)
+from .scrapers import Realo
+
+def get_object_or_404(query_or_model, *query):
+    if not isinstance(query_or_model, SelectQuery):
+        query_or_model = query_or_model.select()
+    try:
+        return query_or_model.where(*query).get()
+    except DoesNotExist:
+        abort(404)
+
+
+def admin_required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        if not current_user.is_admin:
+            return abort(403)
+        return func(*args, **kwargs)
+    return decorated_view
+
+
+ERROR_MESSAGES = {
+    401: "You are unauthenticated",
+    403: "You are not authorised to access this page",
+    404: "The page you requested was not found"
+}
+
+
+def base_error_handler(e):
+    try:
+        message = ERROR_MESSAGES[e.code]
+    except KeyError:
+        message = "Something went wrong"
+    flash("{}. You have been redirected to the home page.".format(message))
+    return redirect(url_for('home') or '/')
+
+for key in ERROR_MESSAGES.keys():
+    app.register_error_handler(key, base_error_handler)
 
 
 @app.route('/')
@@ -48,7 +87,7 @@ def login():
         else:
             if user.verify_password(form.password.data):
                 login_user(user)
-                flash('Successfully logged in')
+                flash('Successfully logged in as {}'.format(user.username))
                 return redirect(url_for('notifications'))
             flash('The password you entered is incorrect')
     return render_template('login.html', form=form)
@@ -62,6 +101,12 @@ def logout():
     return(redirect(url_for('login')))
 
 
+@app.route('/users/', methods=["GET", "POST"])
+@admin_required
+def users():
+    return "You're in!"
+
+
 @app.route('/settings/', methods=["GET", "POST"])
 @login_required
 def settings():
@@ -73,6 +118,29 @@ def settings():
     return render_template('baseform.html', form=form)
 
 
+@celery.task
+def add_realo_house(url):
+    print("started")
+    with Realo(url) as realo_house:
+        house = House.create(
+                    seller=realo_house.seller(),
+                    address=realo_house.address(),
+                    description=realo_house.description(),
+                    price=realo_house.price(),
+                    realo_url=url,
+                    thumbnail_pictures=realo_house.thumbnail_pictures(),
+                    main_pictures=realo_house.main_pictures(),
+                    )
+
+        for information in realo_house.information():
+            HouseInformation.create(
+                house=house,
+                name=information[0],
+                value=information[1])
+
+        Notification.create('house', house._id, house.town)
+
+
 @app.route('/houses/', methods=['GET', 'POST'])
 @login_required
 def houses():
@@ -80,26 +148,11 @@ def houses():
 
     form = HouseForm()
     if form.validate_on_submit():
-        house = form.create_object(House)
+        add_realo_house.delay(form.url.data)
 
-        for picture in form.pictures.entries:
-            Picture.create(
-                house=house._id,
-                description=picture.data['description'],
-                url=picture.data['url'])
+        flash("House created. It will be visible in a couple of minutes")
 
-        flash("House created")
-
-        for user in User.select().where(User._id != current_user._id):
-            notification = Notification.create(user=user,
-                                               house=house,
-                                               category='house')
-            notification.body = """
-            <a href="/notification/{}/">New house in {}</a> added by {}
-            """.format(str(notification._id), house.town, current_user.username)
-            notification.save()
-
-        return redirect(url_for('house_detail', id=house._id))
+        return redirect(url_for('houses'))
 
     elif request.method == "POST":  # submitted but errors
         show_modal = True
@@ -115,89 +168,42 @@ def houses():
 @app.route('/houses/<int:_id>/', methods=["GET", "POST"])
 @login_required
 def house_detail(_id):
-    house = House.get(House._id == _id)
+    house = get_object_or_404(House, House._id == _id)
     houses = House.select()
 
-    message_form = MessageForm(house=house)
+    message_form = MessageForm()
     if message_form.validate_on_submit():
-        message_form.create_object(Message, house=_id, author=current_user._id)
-        return redirect(url_for('houses', _id=_id))
+        message_form.create_object(Message, house=house._id)
+        return redirect(url_for('house_detail', _id=_id))
+    else:
+        print(message_form.errors)
+
+    criterion_form = CriterionForm()
+    if criterion_form.validate_on_submit():
+        pass
+
+    appointment_form = AppointmentForm(house=house)
+    if appointment_form.validate_on_submit():
+        appointment_form.create_object(Appointment)
+        flash('Appointment made')
+        return redirect(url_for('house_detail', _id=_id))
 
     return render_template('house_detail.html',
-                            house=house,
-                            houses=houses,
-                            message_form=message_form)
+                           house=house,
+                           houses=houses,
+                           criterion_form=criterion_form,
+                           message_form=message_form,
+                           appointment_form=appointment_form)
 
 
 @app.route('/notification/<int:_id>/')
 def notification(_id):
     url_endpoints = {'house': 'house_detail'}
-    notification_object = Notification.get(Notification._id == id)
+    notification_object = Notification.get(Notification._id == _id)
     notification_object.read = True
     notification_object.save()
-    return redirect(url_for(url_endpoints[notification_object.category], id=notification_object.object_id))
-
-
-@app.route('/sellers/', methods=['GET', 'POST'])
-@login_required
-def sellers():
-    sellers = Seller.select()
-
-    form = SellerForm()
-    if form.validate_on_submit():
-        form.create_object(Seller)
-        flash("Seller created!")
-        return redirect(url_for('sellers'))
-
-    elif request.method == "POST":
-        show_modal = True
-    else:
-        show_modal = False
-
-    return render_template('sellers.html',
-                           sellers=sellers,
-                           form=form,
-                           show_modal=show_modal)
-
-
-@app.route('/seller/<int:_id>/', methods=['GET', 'POST'])
-@login_required
-def seller(_id):
-    try:
-        seller = Seller.get(_id=_id)
-    except DoesNotExist:
-        flash("Seller with _id: {} does not exist!".format(_id))
-        return redirect(url_for('sellers'))
-
-    form = SellerForm(obj=seller)
-    if form.validate_on_submit():
-        form.edit_object(seller)
-        flash("Seller updated!")
-        return redirect(url_for('sellers'))
-
-    elif request.method == "POST":
-        show_modal = True
-    else:
-        show_modal = False
-
-    return render_template('baseform.html',
-                           title="Edit {}".format(seller.name),
-                           form=form,
-                           show_modal=show_modal)
-
-
-@app.route('/delete_seller/<int:_id>/')
-@login_required
-def delete_seller(_id):
-    try:
-        seller = Seller.get(_id=_id)
-    except DoesNotExist:
-        flash("Seller with _id: {} does not exist!".format(_id))
-        return redirect(url_for('sellers'))
-
-    seller.delete_instance()
-    flash('Seller deleted')
-    return redirect(url_for('sellers'))
+    return redirect(url_for(url_endpoints[notification_object.category],
+                            _id=notification_object.object_id))
 
 
 @app.route('/criteria/', methods=["GET", "POST"])
@@ -208,38 +214,52 @@ def criteria():
     if form.validate_on_submit():
         form.create_object(Criterion)
         flash("Criterion created")
+        return redirect(url_for('criteria'))
     elif request.method == "POST":
         show_modal = True
     else:
         show_modal = False
 
     return render_template('criteria.html',
-                            criteria=criteria,
-                            form=form,
-                            show_modal=show_modal)
+                           criteria=criteria,
+                           form=form,
+                           show_modal=show_modal)
 
 
-@app.route('/appointments/')
+@app.route('/criterion/<int:_id>/', methods=["GET", "POST"])
+def criterion(_id):
+    criterion = Criterion.get(Criterion._id == _id)
+    form = CriterionForm(obj=criterion)
+    if form.validate_on_submit():
+        form.edit_object(criterion)
+        flash('Criterion updated')
+        return redirect(url_for('criteria'))
+
+    return render_template("baseform.html",
+                           form=form)
+
+
+@app.route('/appointments/', methods=["GET", "POST"])
 @login_required
 def appointments():
     appointments = Appointment.select().order_by(Appointment.dt)
     form = AppointmentForm()
     if form.validate_on_submit():
         form.create_object(Appointment)
-        for user in User.others():
-            Notification.create(user=user,
-                                )
+        Notification.create('appointment', form.house.data)
+        flash("Appointment made")
 
     return render_template('appointments.html',
-                            appointments=appointments)
-
-
+                           appointments=appointments,
+                           form=form)
 
 
 @app.route("/notifications/")
 @login_required
 def notifications():
-    notifications = Notification.select().where(Notification.user == current_user._id)
+    notifications = (Notification
+                     .select()
+                     .where(Notification.user == current_user._id))
 
     return render_template('notifications.html',
                            notifications=notifications)

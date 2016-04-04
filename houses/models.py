@@ -24,12 +24,14 @@ class UserNotAvailableError(Exception):
 class BaseModel(Model):
     _id = PrimaryKeyField(primary_key=True)  # avoid shadowing built-in id
                                              # and/or unnecessary ambiguity
-
     def readable_date(self):
-        return self.dt.format("%d/%m/%Y")
+        return self.dt.strftime("%d/%m/%Y")
 
     def readable_time(self):
-        return self.dt.format("%H:%M")
+        return self.dt.strftime("%H:%M")
+
+    def readable_datetime(self):
+        return self.dt.strftime("%d/%m/%Y %H:%M")
 
     @classmethod
     def tables(cls):
@@ -44,6 +46,9 @@ class BaseModel(Model):
     class Meta:
         database = database
 
+    def __repr__(self):
+        return self._id
+
 
 class User(BaseModel, UserMixin):
     username = CharField(unique=True,
@@ -51,10 +56,12 @@ class User(BaseModel, UserMixin):
     password = CharField()
     email = CharField(null=True)
 
+    def __repr__(self):
+        return self.username
+
     @classmethod
     def create(cls, **kwargs):
-        hashed_password = bcrypt.generate_password_hash(kwargs["password"])
-        del kwargs["password"]
+        hashed_password = bcrypt.generate_password_hash(kwargs.pop('password'))
 
         user = cls(password=hashed_password, **kwargs)
 
@@ -73,9 +80,12 @@ class User(BaseModel, UserMixin):
     def verify_password(self, password):
         return bcrypt.check_password_hash(self.password, password)
 
-    @staticmethod
-    def others():
-        return User.select().where(User._id != current_user._id)
+    def others(self):
+        return User.select().where(User._id != self._id)
+
+    @property
+    def is_admin(self):
+        return self.username == "Ben"
 
 
 class Criterion(BaseModel):
@@ -88,54 +98,57 @@ class Criterion(BaseModel):
     formula = TextField()
     explanation = TextField(null=True)
 
-    class Meta:
-        order_by = ('-dealbreaker', '-importance')
-
-
-class Seller(BaseModel):
-    name = CharField(max_length=30)
-    website = CharField(null=True)
-    telephone_number = CharField(null=True)
-    real_estate_agent = BooleanField(null=True)
-
-    def __unicode__(self):
-        return self.name
-
-    def __str__(self):
-        return self.name
-
     def __repr__(self):
         return self.name
+
+    class Meta:
+        order_by = ('-dealbreaker', '-importance')
 
 
 class House(BaseModel):
     class Meta:
         order_by = ('-sold',)
 
-    seller = ForeignKeyField(Seller, related_name='houses')
+    seller = CharField()
     price = IntegerField()
-    land_only = BooleanField(default=False)
+    # land_only = BooleanField(default=False)
     sold = BooleanField(default=False)
 
-    street = CharField(null=True)
-    house_nr = CharField(null=True)
-    postal_code = CharField(null=True)
-    town = CharField()
+    address = CharField()
     lat = FloatField(null=True)
     lng = FloatField(null=True)
 
-    immo_url = CharField(null=True)
-    realo_url = CharField(null=True)
-    immoweb_url = CharField(null=True)
-    kapaza_url = CharField(null=True)
+    realo_url = CharField(null=True, unique=True)
+    immoweb_url = CharField(null=True, unique=True)
+    description = CharField(null=True)
 
-    contacted = BooleanField(default=False)
     visited = BooleanField(default=False)
 
-    def address(self):
-        return ' '.join(item
-                        for item in [self.street, self.house_nr, self.town]
-                        if item)
+    _thumbail_pictures = TextField()
+    _main_pictures = TextField()
+
+    def __repr__(self):
+        return self.town
+
+    @property
+    def town(self):
+        return self.address.split()[-1]
+
+    @property
+    def thumbnail_pictures(self):
+        return self._thumbail_pictures.split(",")
+
+    @thumbnail_pictures.setter
+    def thumbnail_pictures(self, value):
+        self._thumbail_pictures = ",".join(value)
+
+    @property
+    def main_pictures(self):
+        return self._main_pictures.split(",")
+
+    @main_pictures.setter
+    def main_pictures(self, value):
+        self._main_pictures = ",".join(value)
 
     def score(self):
         """
@@ -155,10 +168,13 @@ class House(BaseModel):
         return actual_score / max_score
 
 
-class Picture(BaseModel):
-    house = ForeignKeyField(House, related_name='pictures')
-    url = CharField()
-    description = CharField(null=True)
+class HouseInformation(BaseModel):
+    house = ForeignKeyField(House, related_name='information')
+    name = CharField()
+    value = CharField()
+
+    def __repr__(self):
+        return self.house.town, self.name, self.value
 
 
 class CriterionScore(BaseModel):
@@ -166,6 +182,9 @@ class CriterionScore(BaseModel):
     house = ForeignKeyField(House, related_name='criterion_scores')
     score = IntegerField()  # range 0-10
     comment = TextField()
+
+    def __repr__(self):
+        return self.criterion.name, self.house.town, self.score
 
 
 class Appointment(BaseModel):
@@ -175,35 +194,72 @@ class Appointment(BaseModel):
     class Meta:
         order_by = ('dt',)
 
+    def __repr__(self):
+        return self.house.town, self.dt
+
 
 class CustomBase(BaseModel):
-    user = ForeignKeyField(User)
-    house = ForeignKeyField(House)
     dt = DateTimeField(default=datetime.now())
-    read = BooleanField(default=False)
-    body = TextField(null=True)
+    body = TextField()
 
-    @classmethod
-    def create(cls, **kwargs):
-        obj = cls()
-        obj.user = current_user
-        for name, value in kwargs.items():
-            setattr(obj, name, value)
-        obj.save()
-        return obj
-
-    class Meta:
-        order_by = ('read', '-dt')
+    
 
 
 class Message(CustomBase):
-    pass
+    author = ForeignKeyField(User, related_name='messages')
+    house = ForeignKeyField(House, related_name='messages')
+
+    @classmethod
+    def create(cls, *args, **kwargs):
+        obj = super(Message, cls).create(author=current_user._id, **kwargs)
+        return obj
+
+    class Meta:
+        order_by = ('dt',)
 
 
 class Notification(CustomBase):
+    user = ForeignKeyField(User)
+    read = BooleanField(default=False)
     category = CharField(choices=[('appointment', 'New appointment'),
                                   ('house', 'New house'),
                                   ('message', 'New message')])
+    object_id = IntegerField()
+
+    MESSAGES = {
+        "house": "New house in {town} added by {username}",
+        "appointment": "New appointment for house in {town} made by {username}",
+        "message": "New message to house in {town} written by {username}"
+    }
+
+    @classmethod
+    def create(cls, category, object_id, town):
+        for user in current_user.others():
+            obj = cls()
+            obj.user = current_user._id
+            obj.object_id = object_id
+            obj.category = category
+            try:
+                message_string = cls.MESSAGES[category]
+            except KeyError:
+                raise ValueError(
+                    """
+                    Invalid category; valid categories are {}.
+                    The one you entered is {}.
+                    """.format(", ".join(cls.MESSAGES.keys()), category))
+            obj.body = message_string.format(
+                    **{"town": town,
+                     "username": current_user.username})
+            obj.save()
+            obj.body = (
+                """
+                <a href="/notification/{}/">{}</a>
+                """).format(str(obj._id),
+                            obj.body)
+            obj.save()
+
+    class Meta:
+        order_by = ('-dt',)
 
 
 class UserAvailability(BaseModel):

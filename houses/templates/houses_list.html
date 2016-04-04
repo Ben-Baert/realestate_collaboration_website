@@ -27,7 +27,7 @@
 
 .card > .carousel {
   margin-bottom: .75rem;
-  height: auto; 
+  height: 280px; 
   width: auto; 
   max-width: 100%; 
   max-height: 280px;
@@ -37,7 +37,7 @@
   color:#fff;
   position:absolute;
   z-index:12;
-  top:55%;
+  top:45%;
   left:0;
   width:100%;
   text-align:center;
@@ -65,7 +65,7 @@
     <div class="container">
         <div class="row">
             {% for house in houses %}
-                {{ housecard.render(house) }}
+                <a href="{{url_for('house_detail', _id=house._id)}}">{{ housecard.render(house) }}</a>
             {% endfor %}
         </div>
     </div>

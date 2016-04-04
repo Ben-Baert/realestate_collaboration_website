@@ -1,15 +1,20 @@
-from flask import Flask, g
+from flask import Flask, g, abort
 from flask_wtf.csrf import CsrfProtect
 from flask.ext.bcrypt import Bcrypt
 from flask.ext.login import LoginManager
 from flask.ext.bootstrap import Bootstrap
-
+from functools import wraps
+from celery import Celery
+from flask.ext.mail import Mail, Message
 
 app = Flask(__name__)
 
 
 SECRET_KEY = 'really_secret'
 WTF_CSRF_SECRET_KEY = 'really_secret_too'
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
 
 
 app.config.from_object(__name__)
@@ -22,9 +27,13 @@ bcrypt = Bcrypt(app)
 Bootstrap(app)
 
 
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
+
 @login_manager.user_loader
 def load_user(_id):
     return User.get(_id=_id)
+
 
 from .models import BaseModel, database, UserNotAvailableError
 # This hook ensures that a connection is opened to handle any queries

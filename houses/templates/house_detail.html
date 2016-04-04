@@ -1,40 +1,93 @@
 {% extends "base.html" %}
-{% import "_form.html" as _form %}
-{% import "_carousel.html" as _carousel %}
+
 
 {% block content %}
 <div class="row">
-    <div class="col-md-3">
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-3"><a href="{{house.realo_url}}">{{ house.town }}</a></div>
+            <div class="col-md-3">€{{ '{0:,}'.format(house.price | int) }}</br></div>
+            <div class="col-md-6">
+            {% if not house.appointments %}
+                {% call _modal.modal(title="Make appointment", launch_text="Make appointment", form=True, show=show_modal) %}
+                    {{ _form.render(appointment_form, action_url=url_for('house_detail', _id=house._id)) }}
+                {% endcall %}
+            {% else %}
+                {% for appointment in house.appointments %}
+                    Afspraak op: {{appointment.dt}}</br>
+                {% endfor %}
+            {% endif %}
+            </div>      
+        </div>
         <div class="row">
             <div class="col-md-12">
-                Carousel
+                {{ _carousel.render(house.main_pictures, _id=house._id, indicators=True) }}
             </div>
         </div>
-    </div>
-    <div class="col-md-9">
+        <h3>Information</h3>
+        {% for row in house.information | batch(3, "<div class='col-md-4'></div>") %}
         <div class="row">
-            <div class="col-md-9">{{ house.town }}</div>
-            <div class="col-md-3">€{{ '{0:,}'.format(house.price | int) }}</br></div>      
+            {% for information in row %}
+                <div class="col-md-4">
+                    <div class="row">
+                        <div class="col-md-12">
+                            {{information.name}}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <b>{{information.value}}</b>
+                        </div>
+                    </div>    
+                </div>
+            {% endfor %}
         </div>
-        <div class="row">
-            <div class="col-md-12">{{ _carousel.render(house.pictures, _id=house._id, indicators=True) }}</div>
+        {% endfor %}
+        <h3>Criteria</h3>
+            {% for row in house.criteria | batch(3, "<div class='col-md-4'></div>") %}
+            <div class="row">
+                {% for criterion in row %}
+                    <div class="col-md-4">
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ criterion.name }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ criterion.score}}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            <div class="col-md-12">
+                {% call _modal.modal(title="Edit criteria scores", launch_text="Edit criteria scores", form=True, show=show_modal) %}
+                    {{ _form.render(criterion_form, action_url=url_for('house_detail', _id=house._id)) }}
+                {% endcall %}
+            </div>
         </div>
+        <h3>Messages</h3>
         <div class="row">
             <div>
                 <div class="col-md-12">
                     {% for message in house.messages %}
                         <div class="row">
                             <div class="col-md-3">
-                                {{ message.author.username }}
+                                <b>{{ message.author.username }}</b>
                             </div>
-                            <div class="col-md-9">
+                            <div class="col-md-3">
+                                {{ message.readable_datetime() }}
+                            </div>
+                            <div class="col-md-6">
                                 {{ message.body }}
                             </div>
                         </div>
                     {% endfor %}
                         <div class="row">
                             <div class="col-md-12">
-                                {% call _form.render(message_form, action_url=url_for('house_detail', id=house._id)) %}
+                                {% call _form.render(message_form, action_url=url_for('house_detail', _id=house._id)) %}
                                     {{ _form.render_field(message_form.body, label_visible=False) }}
                                 {% endcall %}
                             </div>

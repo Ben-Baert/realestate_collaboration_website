@@ -1,5 +1,7 @@
 {% import "_form.html" as _form %}
 {% import "_modal.html" as _modal %}
+{% import "_carousel.html" as _carousel %}
+{% import "_housecard.html" as _housecard %}
 
 <html>
     <head>
@@ -11,9 +13,7 @@
             }
             .main {
               padding: 3rem 1.5rem;
-              text-align: center;
             }
-
         </style>
         {% block css %}
         {% endblock %}
@@ -21,6 +21,16 @@
     <body>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/js/bootstrap.min.js" integrity="sha384-vZ2WRJMwsjRMW/8U7i6PWi6AlO1L79snBrmgiDpgIWJ82z8eA5lenwvxbMV1PAh7" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+        $(function(){
+
+        $('.carousel-control').click(function(e){
+            e.preventDefault();
+            $('.carousel').carousel( $(this).data() );
+        });
+
+    });//END document.ready
+    </script>
     {% include "navbar.html" %}
         <div class="container">
             <div class="main">
