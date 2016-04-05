@@ -121,24 +121,26 @@ def settings():
 @celery.task
 def add_realo_house(url):
     print("started")
-    with Realo(url) as realo_house:
-        house = House.create(
-                    seller=realo_house.seller(),
-                    address=realo_house.address(),
-                    description=realo_house.description(),
-                    price=realo_house.price(),
-                    realo_url=url,
-                    thumbnail_pictures=realo_house.thumbnail_pictures(),
-                    main_pictures=realo_house.main_pictures(),
-                    )
+    with app.app_context():
+        with Realo(url) as realo_house:
+            house = House.create(
+                        added_by=current_user._id,
+                        seller=realo_house.seller(),
+                        address=realo_house.address(),
+                        description=realo_house.description(),
+                        price=realo_house.price(),
+                        realo_url=url,
+                        thumbnail_pictures=realo_house.thumbnail_pictures(),
+                        main_pictures=realo_house.main_pictures(),
+                        )
 
-        for information in realo_house.information():
-            HouseInformation.create(
-                house=house,
-                name=information[0],
-                value=information[1])
+            for information in realo_house.information():
+                HouseInformation.create(
+                    house=house,
+                    name=information[0],
+                    value=information[1])
 
-        Notification.create('house', house._id, house.town)
+            Notification.create('house', house._id, house.town)
 
 
 @app.route('/houses/', methods=['GET', 'POST'])

@@ -11,7 +11,7 @@ from peewee import (SqliteDatabase,
                     ForeignKeyField,
                     DateTimeField,
                     PrimaryKeyField)
-from .app import bcrypt
+from .app import bcrypt, celery
 
 
 database = SqliteDatabase('houses.db')
@@ -108,6 +108,9 @@ class Criterion(BaseModel):
 class House(BaseModel):
     class Meta:
         order_by = ('-sold',)
+
+    added_at = DateTimeField(default=datetime.now())
+    added_by = ForeignKeyField(User, related_name='houses_added')
 
     seller = CharField()
     price = IntegerField()
@@ -235,8 +238,9 @@ class Notification(CustomBase):
     @classmethod
     def create(cls, category, object_id, town):
         for user in current_user.others():
+            print("User: " + user.username)
             obj = cls()
-            obj.user = current_user._id
+            obj.user = user._id
             obj.object_id = object_id
             obj.category = category
             try:

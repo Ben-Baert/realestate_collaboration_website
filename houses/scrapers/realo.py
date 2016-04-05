@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 import re
 from sortedcontainers import SortedSet
 
@@ -109,13 +110,24 @@ class Realo:
                 return item[1]
 
     def description(self):
-        return self.driver.find_element_by_css_selector(
-            """
-            .module-description > p:nth-child(4)
-            """).text
+        try:
+            return self.driver.find_element_by_css_selector(
+                """
+                .module-description
+                > p:nth-child(4)
+                """).text
+        except NoSuchElementException:
+            return None
 
     def thumbnail_pictures(self):
-        self.driver.find_element_by_css_selector("#mediaViewer > ul.views > li.show > div > div").click()
+        self.driver.find_element_by_css_selector(
+            """
+            #mediaViewer
+            > ul.views
+            > li.show
+            > div
+            > div
+            """).click()
         images = self.driver.find_elements_by_css_selector(
             """
             div.pswp__carousel-item
@@ -124,7 +136,14 @@ class Realo:
             """)
         for image in images:
             yield image.get_attribute('src')
-        self.driver.find_element_by_css_selector("#mediaViewer > ul.views > li.show > div > div").click()
+            
+        self.driver.find_element_by_css_selector("""
+            #mediaViewer
+            > ul.views
+            > li.show
+            > div
+            > div
+            """).click()
 
     def main_pictures(self):
         images = SortedSet()
