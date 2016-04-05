@@ -123,10 +123,13 @@ def add_realo_house(url):
     print("started")
     with app.app_context():
         with Realo(url) as realo_house:
+            lat, lng = realo_house.lat_lng()
             house = House.create(
                         added_by=current_user._id,
                         seller=realo_house.seller(),
                         address=realo_house.address(),
+                        lat=lat,
+                        lng=lng,
                         description=realo_house.description(),
                         price=realo_house.price(),
                         realo_url=url,

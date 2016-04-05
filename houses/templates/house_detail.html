@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 
+{% block css %}
+<style>
+    .carousel-item > img {
+        max-height:400px;
+        max-width: auto;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -20,7 +28,10 @@
             </div>      
         </div>
         <div class="row">
-            <div class="col-md-12">
+            <div class="col-md-6">
+                {# {{ googlemap("location", lat={{ house.lat }}, lng={{ house.lng }}, markers=[({{ house.lat }}, {{ house.lng }})]) }}--> #} {{house.lat}}
+            </div>
+            <div class="col-md-6">
                 {{ _carousel.render(house.main_pictures, _id=house._id, indicators=True) }}
             </div>
         </div>

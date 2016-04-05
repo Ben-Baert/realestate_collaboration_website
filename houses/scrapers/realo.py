@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 import re
+import ast
 from sortedcontainers import SortedSet
 
 
@@ -38,6 +39,15 @@ class Realo:
                  > h2
                  > span
                  """).text)
+
+    def lat_lng(self):
+        return [float(x) for x in ast.literal_eval(self
+                                                   .driver
+                                                   .find_element_by_css_selector(
+                                                        """
+                                                        #mediaViewer
+                                                        """)
+                                                    .get_attribute('data-latlng'))]
 
     def price(self):
         return int(self
@@ -136,7 +146,7 @@ class Realo:
             """)
         for image in images:
             yield image.get_attribute('src')
-            
+
         self.driver.find_element_by_css_selector("""
             #mediaViewer
             > ul.views

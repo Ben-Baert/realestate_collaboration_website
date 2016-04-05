@@ -5,6 +5,7 @@ from flask.ext.bcrypt import Bcrypt
 from flask.ext.login import LoginManager
 from flask.ext.bootstrap import Bootstrap
 from flask.ext.mail import Mail, Message
+from flask_googlemaps import GoogleMaps
 
 app = Flask(__name__)
 app.config.from_object('config')
@@ -19,6 +20,8 @@ bcrypt = Bcrypt(app)
 Bootstrap(app)
 
 mail = Mail(app)
+
+GoogleMaps(app)
 
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
