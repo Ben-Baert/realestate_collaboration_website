@@ -22,21 +22,21 @@
                 {% endcall %}
             {% else %}
                 {% for appointment in house.appointments %}
-                    Afspraak op: {{appointment.dt}}</br>
+                    <span id="appointment-{{appointment._id}}">Afspraak op: {{appointment.dt}}</span>
                 {% endfor %}
             {% endif %}
             </div>      
         </div>
         <div class="row">
-            <div class="col-md-6">
-                {# {{ googlemap("location", lat={{ house.lat }}, lng={{ house.lng }}, markers=[({{ house.lat }}, {{ house.lng }})]) }}--> #} {{house.lat}}
+            <div class="col-md-7">
+               {{ _carousel.render(house.main_pictures, _id=house._id, indicators=True) }}
             </div>
-            <div class="col-md-6">
-                {{ _carousel.render(house.main_pictures, _id=house._id, indicators=True) }}
+            <div class="col-md-5">
+                {{ googlemap("location", lat=house.lat, lng=house.lng, markers=[(house.lat, house.lng)], style="height:400px;width:100%;margin:0;") }}
             </div>
         </div>
         <h3>Information</h3>
-        {% for row in house.information | batch(3, "<div class='col-md-4'></div>") %}
+        {% for row in house.information | batch(3) %}
         <div class="row">
             {% for information in row %}
                 <div class="col-md-4">
@@ -55,24 +55,25 @@
         </div>
         {% endfor %}
         <h3>Criteria</h3>
-            {% for row in house.criteria | batch(3, "<div class='col-md-4'></div>") %}
+            {% for row in house.criteria | batch(3) %}
             <div class="row">
                 {% for criterion in row %}
                     <div class="col-md-4">
                         <div class="row">
                             <div class="col-md-12">
-                                {{ criterion.name }}
+                                {{ criterion.criterion.name }}
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-12">
-                                {{ criterion.score}}
+                                <b>{{ criterion.score}}</b>
                             </div>
                         </div>
                     </div>
                 {% endfor %}
             </div>
             {% endfor %}
+        <div class="row">
             <div class="col-md-12">
                 {% call _modal.modal(title="Edit criteria scores", launch_text="Edit criteria scores", form=True, show=show_modal) %}
                     {{ _form.render(criterion_form, action_url=url_for('house_detail', _id=house._id)) }}
@@ -84,7 +85,7 @@
             <div>
                 <div class="col-md-12">
                     {% for message in house.messages %}
-                        <div class="row">
+                        <div class="row message" id="message-{{message._id}}">
                             <div class="col-md-3">
                                 <b>{{ message.author.username }}</b>
                             </div>

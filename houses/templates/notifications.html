@@ -20,7 +20,7 @@
                 <tr>
                     <td>{{notification.category}}</td>
                     <td>{{notification.read}}</td>
-                    <td>{{notification.dt}}</td>
+                    <td>{{notification.readable_datetime()}}</td>
                     <td>{{notification.body|safe}}</td>
                 </tr>
             {% endfor %}

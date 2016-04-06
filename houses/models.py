@@ -182,9 +182,9 @@ class HouseInformation(BaseModel):
 
 class CriterionScore(BaseModel):
     criterion = ForeignKeyField(Criterion, related_name='houses')
-    house = ForeignKeyField(House, related_name='criterion_scores')
-    score = IntegerField()  # range 0-10
-    comment = TextField()
+    house = ForeignKeyField(House, related_name='criteria')
+    score = IntegerField(null=True)  # range 0-10
+    comment = TextField(null=True)
 
     def __repr__(self):
         return self.criterion.name, self.house.town, self.score
@@ -205,8 +205,6 @@ class CustomBase(BaseModel):
     dt = DateTimeField(default=datetime.now())
     body = TextField()
 
-    
-
 
 class Message(CustomBase):
     author = ForeignKeyField(User, related_name='messages')
@@ -224,6 +222,7 @@ class Message(CustomBase):
 class Notification(CustomBase):
     user = ForeignKeyField(User)
     read = BooleanField(default=False)
+    house = ForeignKeyField(House, null=True)
     category = CharField(choices=[('appointment', 'New appointment'),
                                   ('house', 'New house'),
                                   ('message', 'New message')])
@@ -236,13 +235,14 @@ class Notification(CustomBase):
     }
 
     @classmethod
-    def create(cls, category, object_id, town):
+    def create(cls, category, house, object_id=None):
         for user in current_user.others():
             print("User: " + user.username)
             obj = cls()
             obj.user = user._id
-            obj.object_id = object_id
+            obj.house = house._id
             obj.category = category
+            obj.object_id = object_id or house._id
             try:
                 message_string = cls.MESSAGES[category]
             except KeyError:
@@ -252,7 +252,7 @@ class Notification(CustomBase):
                     The one you entered is {}.
                     """.format(", ".join(cls.MESSAGES.keys()), category))
             obj.body = message_string.format(
-                    **{"town": town,
+                    **{"town": house.town,
                      "username": current_user.username})
             obj.save()
             obj.body = (

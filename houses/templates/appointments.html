@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+    {{highlighted_id}}
     <div class="row">
         <div class="col-md-12">
             {% call _modal.modal(title="Add new appointment", launch_text="Add new appointment", form=True, show=show_modal) %}
@@ -16,7 +17,8 @@
         </thead>
         <tbody>
             {% for appointment in appointments %}
-            <tr>
+            {{appointment._id}}
+            <tr id="appointment-{{appointment._id}}" {% if appointment._id == highlighted_id %}class="table-info"{% endif %}>
                 <td>{{ appointment.readable_date() }}</td>
                 <td>{{ appointment.readable_time() }}</td>
                 <td>{{ appointment.house.address }}</td>

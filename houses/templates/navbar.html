@@ -15,11 +15,15 @@
   <ul class="nav navbar-nav">
   {% for element in navigation_bar %}
     <li class="nav-item {% if request.path == url_for(element) %} active {% endif %}">
-      <a class="nav-link" href="{{ url_for(element) }}">{{ element | title }} 
-      {% if request.path == url_for(element) %}<span class="sr-only">(current)</span>{% endif %}</a>
+      <a class="nav-link" href="{{ url_for(element) }}">
+        {{ element | title }} 
+        {% if element == 'logout' %}
+          (Logged in as {{current_user.username}})
+        {% endif %}
+        {% if request.path == url_for(element) %}<span class="sr-only">(current)</span>{% endif %}
+      </a>
     </li>
     {% endfor %}
-    <li class="nav-item">(Logged in as {{current_user.username}})</li>
   </ul>
   {% endif %}
 </nav>

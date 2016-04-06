@@ -26,7 +26,8 @@ from .models import (User,
                      Criterion,
                      Message,
                      Appointment,
-                     HouseInformation)
+                     HouseInformation,
+                     CriterionScore)
 from .scrapers import Realo
 
 def get_object_or_404(query_or_model, *query):
@@ -42,6 +43,15 @@ def admin_required(func):
     @wraps(func)
     def decorated_view(*args, **kwargs):
         if not current_user.is_admin:
+            return abort(403)
+        return func(*args, **kwargs)
+    return decorated_view
+
+
+def ownership_required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        if not current_user.is_admin or current_user.is_owner:  # EDIT!
             return abort(403)
         return func(*args, **kwargs)
     return decorated_view
@@ -143,7 +153,10 @@ def add_realo_house(url):
                     name=information[0],
                     value=information[1])
 
-            Notification.create('house', house._id, house.town)
+            for criterion in Criterion.select():
+                CriterionScore.create(criterion=criterion, house=house)
+
+            Notification.create('house', house)
 
 
 @app.route('/houses/', methods=['GET', 'POST'])
@@ -178,7 +191,8 @@ def house_detail(_id):
 
     message_form = MessageForm()
     if message_form.validate_on_submit():
-        message_form.create_object(Message, house=house._id)
+        message = message_form.create_object(Message, house=house._id)
+        Notification.create('message', house, message._id)
         return redirect(url_for('house_detail', _id=_id))
     else:
         print(message_form.errors)
@@ -187,9 +201,10 @@ def house_detail(_id):
     if criterion_form.validate_on_submit():
         pass
 
-    appointment_form = AppointmentForm(house=house)
+    appointment_form = AppointmentForm()
     if appointment_form.validate_on_submit():
-        appointment_form.create_object(Appointment)
+        appointment = appointment_form.create_object(Appointment, house=house._id)
+        Notification.create('appointment', house, appointment._id)
         flash('Appointment made')
         return redirect(url_for('house_detail', _id=_id))
 
@@ -203,12 +218,15 @@ def house_detail(_id):
 
 @app.route('/notification/<int:_id>/')
 def notification(_id):
-    url_endpoints = {'house': 'house_detail'}
+    url_endpoints = {'house': 'house_detail',
+                     'message': 'message',
+                     'appointment': 'appointment'}
     notification_object = Notification.get(Notification._id == _id)
     notification_object.read = True
     notification_object.save()
-    return redirect(url_for(url_endpoints[notification_object.category],
-                            _id=notification_object.object_id))
+    return redirect(url_for('house_detail',
+                            _id=notification_object.house._id,
+                            _anchor=notification_object.category + "-" + str(notification_object.object_id)))
 
 
 @app.route('/criteria/', methods=["GET", "POST"])
@@ -217,7 +235,9 @@ def criteria():
     criteria = Criterion.select()
     form = CriterionForm()
     if form.validate_on_submit():
-        form.create_object(Criterion)
+        criterion = form.create_object(Criterion)
+        for house in House.select():
+            CriterionScore.create(criterion=criterion, house=house)
         flash("Criterion created")
         return redirect(url_for('criteria'))
     elif request.method == "POST":
@@ -248,16 +268,18 @@ def criterion(_id):
 @login_required
 def appointments():
     appointments = Appointment.select().order_by(Appointment.dt)
+
     form = AppointmentForm()
     if form.validate_on_submit():
-        form.create_object(Appointment)
-        Notification.create('appointment', form.house.data)
+        appointment = form.create_object(Appointment)
+        house = House.get(appointment.house)
+        Notification.create('appointment', house._id, house.town)
         flash("Appointment made")
 
     return render_template('appointments.html',
                            appointments=appointments,
-                           form=form)
-
+                           form=form,
+                           )
 
 @app.route("/notifications/")
 @login_required

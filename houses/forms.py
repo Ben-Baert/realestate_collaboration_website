@@ -61,16 +61,18 @@ def convert(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
+
 class BaseForm(FlaskForm):
     def __init__(self, *args, **kwargs):
-        FlaskForm.__init__(self, prefix=convert(self.__class__.__name__.lower()), *args, **kwargs)
+        prefix = convert(self.__class__.__name__.lower())
+        FlaskForm.__init__(self, *args, prefix=prefix, **kwargs)
 
     def create_object(self, model, **kwargs):
-        #obj = model()
+        #  obj = model()
         attributes = {**dict(self.data.items()), **kwargs}
-        print(attributes)
-        #for name, value in attributes.items():
-        #    setattr(obj, name, value)
+        #  print(attributes)
+        #  for name, value in attributes.items():
+        #      setattr(obj, name, value)
         obj = model.create(**attributes)
         return obj
 
@@ -133,4 +135,4 @@ MessageForm = generate_form(Message,
                             converter=house_hidden)
 
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
-AppointmentForm = generate_form(Appointment)
+AppointmentForm = generate_form(Appointment, exclude=["house"])

@@ -5,6 +5,10 @@ import ast
 from sortedcontainers import SortedSet
 
 
+class HouseSoldError(Exception):
+    pass
+
+
 class Realo:
     def __init__(self, url):
         self.url = url
@@ -50,14 +54,19 @@ class Realo:
                                                     .get_attribute('data-latlng'))]
 
     def price(self):
-        return int(self
-                   .driver
-                   .find_element_by_css_selector(
-                        """
-                        span.row:nth-child(1)
-                        """)
-                   .text[2:]
-                   .replace(".", ""))
+        price = (self
+                 .driver
+                 .find_element_by_css_selector(
+                    """
+                    span.row:nth-child(1)
+                    """)
+                 .text[2:]
+                 .replace(".", ""))
+        try:
+            return int(price)
+        except ValueError:
+            if price == "Huis niet te koop":
+                raise HouseSoldError
 
     def inhabitable_area(self):
         return int(self
