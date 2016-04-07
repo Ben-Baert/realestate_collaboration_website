@@ -10,6 +10,8 @@
 {% endblock %}
 
 {% block content %}
+
+{{ house.score }}%
 <div class="row">
     <div class="col-md-12">
         <div class="row">
@@ -66,7 +68,11 @@
                         </div>
                         <div class="row">
                             <div class="col-md-12">
-                                <b>{{ criterion.score}}</b>
+                                {% if criterion.criterion.dealbreaker and criterion.score %}
+                                <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+                                {% else %}
+                                <b>{{ criterion.score }}</b>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -75,8 +81,8 @@
             {% endfor %}
         <div class="row">
             <div class="col-md-12">
-                {% call _modal.modal(title="Edit criteria scores", launch_text="Edit criteria scores", form=True, show=show_modal) %}
-                    {{ _form.render(criterion_form, action_url=url_for('house_detail', _id=house._id)) }}
+                {% call _modal.modal(title="Edit criteria scores", launch_text="Edit criteria scores", form=True, show=show_modal, _id="criteria") %}
+                    {{ _form.render(criterionscore_form, action_url=url_for('house_detail', _id=house._id)) }}
                 {% endcall %}
             </div>
         </div>

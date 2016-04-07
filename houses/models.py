@@ -90,11 +90,8 @@ class User(BaseModel, UserMixin):
 
 class Criterion(BaseModel):
     name = CharField(max_length=30)
-    dealbreaker = BooleanField(default=False,
-                               help_text=("""
-        If True, any house with a score == 0 will be rejected.
-        """))
-    importance = IntegerField(default=5)
+    dealbreaker = BooleanField(default=False)
+    importance = IntegerField(default=5, null=True)
     formula = TextField()
     explanation = TextField(null=True)
 
@@ -127,7 +124,7 @@ class House(BaseModel):
 
     visited = BooleanField(default=False)
 
-    _thumbail_pictures = TextField()
+    _thumbnail_pictures = TextField()
     _main_pictures = TextField()
 
     def __repr__(self):
@@ -139,11 +136,15 @@ class House(BaseModel):
 
     @property
     def thumbnail_pictures(self):
-        return self._thumbail_pictures.split(",")
+        return self._thumbnail_pictures.split(",")
 
     @thumbnail_pictures.setter
     def thumbnail_pictures(self, value):
-        self._thumbail_pictures = ",".join(value)
+        self._thumbnail_pictures = ",".join(value)
+
+    @thumbnail_pictures.deleter
+    def thumbnail_pictures(self):
+        self._thumbnail_pictures = None
 
     @property
     def main_pictures(self):
@@ -153,6 +154,16 @@ class House(BaseModel):
     def main_pictures(self, value):
         self._main_pictures = ",".join(value)
 
+    @main_pictures.deleter
+    def main_pictures(self):
+        self._main_pictures = None
+
+    @property
+    def dealbreakers(self):
+        return any(criterion.score == 0 and criterion.criterion.dealbreaker
+                   for criterion in self.criteria)
+
+    @property
     def score(self):
         """
         Calculates the score based on the items that have been filled in
@@ -162,13 +173,19 @@ class House(BaseModel):
         This is not very efficient, but will be refactored
         (or so I hope, at least) later if necessary.
         """
-        criteria = (CriterionScore.select(
-                    CriterionScore.score, CriterionScore.importance)
-                    .where(CriterionScore.house == self._id))
-        max_score = sum(10 * criterion.importance for criterion in criteria)
-        actual_score = sum(criterion.score * criterion.importance
-                           for criterion in criteria)
-        return actual_score / max_score
+        if self.dealbreakers:
+            return 0
+        max_score = sum(10 * criterion.criterion.importance
+                        for criterion in self.criteria
+                        if not criterion.criterion.dealbreaker)
+        actual_score = sum((criterion.score or 0) *
+                           criterion.criterion.importance
+                           for criterion in self.criteria
+                           if not criterion.criterion.dealbreaker)
+        try:
+            return round(actual_score / max_score * 100)
+        except (ZeroDivisionError, TypeError):
+            return 0
 
 
 class HouseInformation(BaseModel):
@@ -183,11 +200,11 @@ class HouseInformation(BaseModel):
 class CriterionScore(BaseModel):
     criterion = ForeignKeyField(Criterion, related_name='houses')
     house = ForeignKeyField(House, related_name='criteria')
-    score = IntegerField(null=True)  # range 0-10
+    score = IntegerField(null=True)  # range 0-10, if dealbreaker range 0-1
     comment = TextField(null=True)
 
     def __repr__(self):
-        return self.criterion.name, self.house.town, self.score
+        return self.criterion.name
 
 
 class Appointment(BaseModel):
@@ -272,3 +289,6 @@ class UserAvailability(BaseModel):
     """
     user = ForeignKeyField(User, related_name='available')
     dt = DateTimeField()
+
+    class Meta:
+        order_by = ('dt',)

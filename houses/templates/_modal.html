@@ -1,9 +1,9 @@
-{% macro modal(title, launch_text="Add new", primary_button_text="OK!", form=False, show=False) -%}
-<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModal">
+{% macro modal(title, launch_text="Add new", primary_button_text="OK!", form=False, show=False, _id="myModal") -%}
+<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#{{_id}}">
   {{ launch_text }}
 </button>
 
-<div class="modal fade" id="myModal">
+<div class="modal fade" id="{{_id}}">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
@@ -28,6 +28,6 @@
 </div><!-- /.modal -->
 
   {% if show %}
-    <script>$('#myModal').modal('show')</script>
+    <script>$('#{{_id}}').modal('show')</script>
   {% endif %}
 {%- endmacro %}

@@ -18,7 +18,7 @@
         <tbody>
             {% for appointment in appointments %}
             {{appointment._id}}
-            <tr id="appointment-{{appointment._id}}" {% if appointment._id == highlighted_id %}class="table-info"{% endif %}>
+            <tr id="appointment-{{appointment._id}}">
                 <td>{{ appointment.readable_date() }}</td>
                 <td>{{ appointment.readable_time() }}</td>
                 <td>{{ appointment.house.address }}</td>

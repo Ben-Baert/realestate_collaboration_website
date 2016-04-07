@@ -3,6 +3,7 @@ from string import (ascii_lowercase,
                     ascii_uppercase)
 from flask.ext.login import current_user
 from flask_wtf import Form as FlaskForm
+from wtforms.compat import iteritems
 from wtforms.fields import (TextField,
                             FieldList,
                             HiddenField,
@@ -17,8 +18,10 @@ from wtforms.validators import (Required,
                                 Email,
                                 Optional,
                                 EqualTo,
-                                URL)
+                                URL,
+                                NumberRange)
 from wtforms import ValidationError
+from wtforms.form import FormMeta
 from wtfpeewee.orm import (model_form,
                            ModelConverter)
 from wtfpeewee.fields import ModelHiddenField
@@ -27,7 +30,11 @@ from .models import (User,
                      Criterion,
                      Appointment,
                      UserAvailability,
-                     Message)
+                     Message,
+                     CriterionScore)
+from .utils import (camel_to_snake,
+                    snake_to_camel,
+                    to_camelcase)
 
 
 class PasswordValidation:
@@ -57,22 +64,37 @@ class PasswordValidation:
               """)
 
 
-def convert(name):
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+class BaseMeta(FormMeta):
+    def __call__(cls, *args, **kwargs):
+        cls._prefix = camel_to_snake(cls.__name__.lower())
+        setattr(cls, "formname", HiddenField("formname", default=cls._prefix))
+        return FormMeta.__call__(cls, *args, **kwargs)
 
 
-class BaseForm(FlaskForm):
-    def __init__(self, *args, **kwargs):
-        prefix = convert(self.__class__.__name__.lower())
-        FlaskForm.__init__(self, *args, prefix=prefix, **kwargs)
+class FormMetaAlt(BaseMeta):
+    def __call__(cls, house, *args, **kwargs):
+        for criterion in house.criteria:
+            if not criterion.criterion.dealbreaker:
+                field = IntegerField(criterion.criterion.name,
+                             default=criterion.score,
+                             description=criterion.criterion.formula,
+                             validators=[Optional(), NumberRange(min=0, max=10)])
+            else:
+                field = BooleanField(criterion.criterion.name,
+                                     default=True if criterion.score else False,
+                                     description=criterion.criterion.formula,
+                                     )
+            setattr(cls, criterion.criterion.name, field)
+        return BaseMeta.__call__(cls, *args, **kwargs)
+
+
+class BaseForm(FlaskForm, metaclass=BaseMeta):
+    def validate_on_submit(self):
+        return (super().validate_on_submit() and
+                self.formname.data == self.__class__._prefix)
 
     def create_object(self, model, **kwargs):
-        #  obj = model()
         attributes = {**dict(self.data.items()), **kwargs}
-        #  print(attributes)
-        #  for name, value in attributes.items():
-        #      setattr(obj, name, value)
         obj = model.create(**attributes)
         return obj
 
@@ -80,6 +102,16 @@ class BaseForm(FlaskForm):
         for name, value in self.data.items():
             setattr(obj, name, value)
         obj.save()
+
+    @property
+    def data(self):
+        d = super().data
+        d.pop('formname')
+        return d
+
+
+class CriterionScoreForm(BaseForm, metaclass=FormMetaAlt):
+    pass
 
 
 class HouseForm(FlaskForm):
@@ -89,6 +121,9 @@ class HouseForm(FlaskForm):
         if not (field.data.startswith("http://www.realo.be/") or
                 field.data.startswith("https://www.realo.be/")):
             raise ValidationError("URL must be a Realo url")
+        if not (field.data.startswith("http://www.realo.be/nl/") or
+                field.data.startswith("https://www.realo.be/nl/")):
+            raise ValidationError("URL must be a Dutch Realo URL")
 
 converter = ModelConverter(overrides={"password": PasswordField})
 
@@ -121,12 +156,12 @@ class BaseSettingsForm(BaseForm):
 SettingsForm = generate_form(User,
                              base_class=BaseSettingsForm,
                              field_args={
-                                         "username": dict(validators=[Length(min=3)]),
-    "password": dict(label="New password (optional)",
-                     validators=[PasswordValidation(),
-                                 Optional()]),
-    "email": dict(validators=[Email()])
-    })
+                             "username": dict(validators=[Length(min=3)]),
+                             "password": dict(label="New password (optional)",
+                                              validators=[PasswordValidation(),
+                                                          Optional()]),
+                              "email": dict(validators=[Email()])
+                              })
 
 CriterionForm = generate_form(Criterion)
 
@@ -136,3 +171,4 @@ MessageForm = generate_form(Message,
 
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
 AppointmentForm = generate_form(Appointment, exclude=["house"])
+AppointmentsForm = generate_form(Appointment)

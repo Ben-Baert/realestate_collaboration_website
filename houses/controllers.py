@@ -12,6 +12,7 @@ from flask.ext.login import (login_required,
                              current_user,
                              logout_user,
                              current_app)
+from wtforms.fields import IntegerField
 from .app import (app,
                   celery)
 from .forms import (LoginForm,
@@ -19,7 +20,9 @@ from .forms import (LoginForm,
                     SettingsForm,
                     CriterionForm,
                     MessageForm,
-                    AppointmentForm)
+                    AppointmentForm,
+                    AppointmentsForm,
+                    CriterionScoreForm)
 from .models import (User,
                      House,
                      Notification,
@@ -162,13 +165,13 @@ def add_realo_house(url):
 @app.route('/houses/', methods=['GET', 'POST'])
 @login_required
 def houses():
-    houses = House.select()
+    houses = House.select()#.order_by(House.score)
 
     form = HouseForm()
     if form.validate_on_submit():
         add_realo_house.delay(form.url.data)
 
-        flash("House created. It will be visible in a couple of minutes")
+        flash("House created. It should be visible in a couple of minutes.")
 
         return redirect(url_for('houses'))
 
@@ -190,20 +193,28 @@ def house_detail(_id):
     houses = House.select()
 
     message_form = MessageForm()
+    criterionscore_form = CriterionScoreForm(house=house)
+    appointment_form = AppointmentForm()
+
     if message_form.validate_on_submit():
         message = message_form.create_object(Message, house=house._id)
         Notification.create('message', house, message._id)
         return redirect(url_for('house_detail', _id=_id))
-    else:
-        print(message_form.errors)
 
-    criterion_form = CriterionForm()
-    if criterion_form.validate_on_submit():
-        pass
+    if criterionscore_form.validate_on_submit():
+        for name, score in criterionscore_form.data.items():
+            criterion = Criterion.get(Criterion.name == name)
+            criterionscore = CriterionScore.get(
+                CriterionScore.criterion == criterion._id,
+                CriterionScore.house == house._id)
+            criterionscore.score = int(score)
+            criterionscore.save()
+        flash('Criteria updated')
+        return redirect(url_for('house_detail', _id=_id))
 
-    appointment_form = AppointmentForm()
     if appointment_form.validate_on_submit():
-        appointment = appointment_form.create_object(Appointment, house=house._id)
+        appointment = appointment_form.create_object(
+            Appointment, house=house._id)
         Notification.create('appointment', house, appointment._id)
         flash('Appointment made')
         return redirect(url_for('house_detail', _id=_id))
@@ -211,7 +222,7 @@ def house_detail(_id):
     return render_template('house_detail.html',
                            house=house,
                            houses=houses,
-                           criterion_form=criterion_form,
+                           criterionscore_form=criterionscore_form,
                            message_form=message_form,
                            appointment_form=appointment_form)
 
@@ -269,7 +280,7 @@ def criterion(_id):
 def appointments():
     appointments = Appointment.select().order_by(Appointment.dt)
 
-    form = AppointmentForm()
+    form = AppointmentsForm()
     if form.validate_on_submit():
         appointment = form.create_object(Appointment)
         house = House.get(appointment.house)

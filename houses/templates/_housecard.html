@@ -3,7 +3,6 @@
 {% macro render(house) -%}
 <div class="card" id="card-{{house._id}}">          
     <div class="overlay">
-        €
     </div>
     {% if house.thumbnail_pictures %}
         <img src="{{house.thumbnail_pictures[0]}}">
@@ -12,7 +11,7 @@
     <p class="card-text">
         {{ '{0:,}'.format(house.price | int) }}</br>
         {{ house.town }}</br>
-        Rating: {{ house.rating }}
+        Rating: {{ house.score }}%
     </p>
 </div>
 {%- endmacro %}
