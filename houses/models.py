@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask.ext.login import UserMixin, current_user
+from geopy.distance import vincenty
 from peewee import (SqliteDatabase,
                     Model,
                     CharField,
@@ -12,6 +13,9 @@ from peewee import (SqliteDatabase,
                     DateTimeField,
                     PrimaryKeyField)
 from .app import bcrypt, celery
+from .utils import to_snakecase
+import houses.criteria
+
 
 
 database = SqliteDatabase('houses.db')
@@ -55,6 +59,7 @@ class User(BaseModel, UserMixin):
                          max_length=30)
     password = CharField()
     email = CharField(null=True)
+    active = BooleanField(default=True)
 
     def __repr__(self):
         return self.username
@@ -87,19 +92,46 @@ class User(BaseModel, UserMixin):
     def is_admin(self):
         return self.username == "Ben"
 
+    @property
+    def is_active(self):
+        return self.active
+
 
 class Criterion(BaseModel):
+    short = CharField()
     name = CharField(max_length=30)
     dealbreaker = BooleanField(default=False)
-    importance = IntegerField(default=5, null=True)
-    formula = TextField()
+    importance = IntegerField(default=0, null=True)
+    formula = TextField(null=True)
     explanation = TextField(null=True)
+
+    @property
+    def clean_name(self):
+        return to_snakecase(self.name)
+
+    @property
+    def builtin(self):
+        return hasattr(self.clean_name, 'criteria')
+
+    def delete_instance(self, *args, **kwargs):
+        if self.builtin:
+            raise NotImplementedError(
+            '''
+            You can't just remove a builtin criterion.
+            ''')
 
     def __repr__(self):
         return self.name
 
     class Meta:
         order_by = ('-dealbreaker', '-importance')
+
+#class LatLngField(Field):
+#    pass
+
+
+class Land(BaseModel):
+    pass
 
 
 class House(BaseModel):
@@ -129,6 +161,19 @@ class House(BaseModel):
 
     def __repr__(self):
         return self.town
+
+    def distance_to(self, lat, lng):
+        return vincenty((self.lat, self.lng), (lat, lng))
+
+    def nearby_houses(self):
+        pass
+
+    def appointment_proposals(self):
+        pass
+
+    @classmethod
+    def next_appointment(self):
+        pass
 
     @property
     def town(self):
@@ -187,24 +232,92 @@ class House(BaseModel):
         except (ZeroDivisionError, TypeError):
             return 0
 
+    def __getattr__(self, short):
+        #try:
+        category = HouseInformationCategory.get(HouseInformationCategory.short == short)
+        return HouseInformation.get(HouseInformation.house == self._id,
+                                        HouseInformation.category == category).value
+        #except AttributeError:
+        #    raise NotImplementedError("Something went wrong! {}".format(short)) #return None
+
+
+class HouseInformationCategory(BaseModel):
+    short = CharField(unique=True, null=True)
+    name = CharField(unique=True, null=True)
+    realo_name = CharField(unique=True)
+
+    def __repr__(self):
+        return "{}: {}".format(self.__class__.__name__, self.name)
+
 
 class HouseInformation(BaseModel):
     house = ForeignKeyField(House, related_name='information')
-    name = CharField()
+    category = ForeignKeyField(HouseInformationCategory)
     value = CharField()
 
+    @property
+    def name(self):
+        return self.category.name or self.category.realo_name
+
     def __repr__(self):
-        return self.house.town, self.name, self.value
+        return "{} information for house in {}: {}".format(self.category.name,
+                                                           self.house.town,
+                                                           self.value)
 
 
 class CriterionScore(BaseModel):
+    """
+    Set metaclass to detect if builtin.
+    If so, set default value for score to the return
+    value of the builtin function.
+    """
     criterion = ForeignKeyField(Criterion, related_name='houses')
     house = ForeignKeyField(House, related_name='criteria')
-    score = IntegerField(null=True)  # range 0-10, if dealbreaker range 0-1
+    score = IntegerField(null=True)
+    # , default=self.defaultscore)  # range 0-10, if dealbreaker range 0-1
     comment = TextField(null=True)
 
-    def __repr__(self):
+    @property
+    def name(self):
         return self.criterion.name
+
+    @property
+    def short(self):
+        return self.criterion.short
+
+    @property
+    def safescore(self):
+        return self.score or self.defaultscore()
+
+    @property
+    def dealbreaker_failed(self):
+        return self.criterion.dealbreaker and self.safescore == 0
+
+    @property
+    def dealbreaker_passed(self):
+        return self.criterion.dealbreaker and self.safescore
+
+    @property
+    def score_unknown(self):
+        return self.safescore is None
+
+    def defaultscore(self):
+        print("in defaultscore")
+        #try:
+        return getattr(houses.criteria, self.short)(self.house)
+        #except AttributeError:
+        #    print("fuck!")
+        #    return None
+        #except TypeError:
+        #    raise NotImplementedError(
+        #        """
+        #       Excepted a function!
+        #        """)
+
+    def __repr__(self):
+        return "{} score for house in {}: {}".format(self.criterion.name,
+                                                     self.house.town,
+                                                     self.score)
 
 
 class Appointment(BaseModel):
@@ -215,7 +328,7 @@ class Appointment(BaseModel):
         order_by = ('dt',)
 
     def __repr__(self):
-        return self.house.town, self.dt
+        return "Appointment for house in {} at {}".format(self.house.town, self.readable_datetime())
 
 
 class CustomBase(BaseModel):
@@ -231,6 +344,13 @@ class Message(CustomBase):
     def create(cls, *args, **kwargs):
         obj = super(Message, cls).create(author=current_user._id, **kwargs)
         return obj
+
+    def __repr__(self):
+        return "{} by {} to house in {} posted at {}: {}".format(self.__class__.__name,
+                                                                 self.author.username,
+                                                                 self.house.town,
+                                                                 self.body,
+                                                                 self.readable_datetime())
 
     class Meta:
         order_by = ('dt',)

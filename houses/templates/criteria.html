@@ -27,7 +27,9 @@
                     <td>{{ criterion.formula }}</td>
                     <td>{{ criterion.comments }}</td>
                     <td><a href="{{url_for('criterion', _id=criterion._id)}}">Edit</a></td>
-                    <td>Delete</td>
+                    
+                    <td>{% if not criteria.builtin %}Delete{% endif %}</td>
+                    
                 </tr>
             {% endfor %}
         </tbody>

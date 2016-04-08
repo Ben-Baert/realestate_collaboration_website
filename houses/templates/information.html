@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <table class="table">
+        <thead>
+            <th>Short</th>
+            <th>Name</th>
+            <th>Realo name</th>
+            <th></th>
+        </thead>
+        <tbody>
+            {% for info in information %}
+            <tr>
+                <td>
+                    {{info.short}}
+                </td>
+                <td>
+                    {{info.name}}
+                </td>
+                <td>
+                    {{info.realo_name}}
+                </td>
+                <td>
+                    <a href="{{ url_for('information_detail', _id=info._id) }}">Edit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+{% endblock %}
+

@@ -1,8 +1,8 @@
 import re
 
 
-def to_camelcase(name):
-    return name.replace(" ", "_")
+def to_snakecase(name):
+    return name.replace(" ", "_").lower()
 
 
 def camel_to_snake(name):

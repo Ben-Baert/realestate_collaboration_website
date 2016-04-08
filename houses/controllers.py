@@ -3,7 +3,7 @@ from flask import (redirect,
                    request,
                    url_for,
                    flash,
-                   g,
+                   # g,
                    render_template,
                    abort)
 from peewee import DoesNotExist, SelectQuery
@@ -12,7 +12,6 @@ from flask.ext.login import (login_required,
                              current_user,
                              logout_user,
                              current_app)
-from wtforms.fields import IntegerField
 from .app import (app,
                   celery)
 from .forms import (LoginForm,
@@ -22,7 +21,9 @@ from .forms import (LoginForm,
                     MessageForm,
                     AppointmentForm,
                     AppointmentsForm,
-                    CriterionScoreForm)
+                    CriterionScoreForm,
+                    HouseInformationCategoryForm,
+                    AdminUserForm)
 from .models import (User,
                      House,
                      Notification,
@@ -30,8 +31,10 @@ from .models import (User,
                      Message,
                      Appointment,
                      HouseInformation,
-                     CriterionScore)
+                     CriterionScore,
+                     HouseInformationCategory)
 from .scrapers import Realo
+
 
 def get_object_or_404(query_or_model, *query):
     if not isinstance(query_or_model, SelectQuery):
@@ -99,6 +102,9 @@ def login():
             flash('User does not exist')
         else:
             if user.verify_password(form.password.data):
+                if not user.is_active:
+                    flash('Your account is not active')
+                    return abort(403)
                 login_user(user)
                 flash('Successfully logged in as {}'.format(user.username))
                 return redirect(url_for('notifications'))
@@ -117,7 +123,41 @@ def logout():
 @app.route('/users/', methods=["GET", "POST"])
 @admin_required
 def users():
-    return "You're in!"
+    users = User.select()
+
+    return render_template("users.html", users=users)
+
+
+@app.route('/user/<int:_id>', methods=["GET", "POST"])
+@admin_required
+def user(_id):
+    user = User.get(_id=_id)
+    form = AdminUserForm(obj=user)
+    if form.validate_on_submit():
+        form.edit_object(user)
+        return redirect(url_for('users'))
+
+    return render_template("baseform.html", form=form)
+
+
+@app.route('/information/', methods=["GET", "POST"])
+@admin_required
+def information():
+    information = HouseInformationCategory.select()
+
+    return render_template("information.html",
+                           information=information)
+
+
+@app.route('/information/<int:_id>/', methods=["GET", "POST"])
+@admin_required
+def information_detail(_id):
+    item = HouseInformationCategory.get(_id=_id)
+    form = HouseInformationCategoryForm(obj=item)
+    if form.validate_on_submit():
+        form.edit_object(item)
+        return redirect(url_for('information'))
+    return render_template("baseform.html", form=form)
 
 
 @app.route('/settings/', methods=["GET", "POST"])
@@ -151,9 +191,11 @@ def add_realo_house(url):
                         )
 
             for information in realo_house.information():
+                category, _ = (HouseInformationCategory
+                               .get_or_create(realo_name=information[0]))
                 HouseInformation.create(
                     house=house,
-                    name=information[0],
+                    category=category,
                     value=information[1])
 
             for criterion in Criterion.select():
@@ -165,7 +207,7 @@ def add_realo_house(url):
 @app.route('/houses/', methods=['GET', 'POST'])
 @login_required
 def houses():
-    houses = House.select()#.order_by(House.score)
+    houses = House.select()
 
     form = HouseForm()
     if form.validate_on_submit():
@@ -237,7 +279,9 @@ def notification(_id):
     notification_object.save()
     return redirect(url_for('house_detail',
                             _id=notification_object.house._id,
-                            _anchor=notification_object.category + "-" + str(notification_object.object_id)))
+                            _anchor=(notification_object.category +
+                                     "-" +
+                                     str(notification_object.object_id))))
 
 
 @app.route('/criteria/', methods=["GET", "POST"])
@@ -291,6 +335,7 @@ def appointments():
                            appointments=appointments,
                            form=form,
                            )
+
 
 @app.route("/notifications/")
 @login_required

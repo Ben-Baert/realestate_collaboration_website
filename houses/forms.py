@@ -31,10 +31,11 @@ from .models import (User,
                      Appointment,
                      UserAvailability,
                      Message,
-                     CriterionScore)
+                     CriterionScore,
+                     HouseInformationCategory)
 from .utils import (camel_to_snake,
                     snake_to_camel,
-                    to_camelcase)
+                    to_snakecase)
 
 
 class PasswordValidation:
@@ -141,7 +142,7 @@ def generate_form(model, base_class=BaseForm, converter=converter, **kwargs):
                       converter=converter, **kwargs)
 
 
-LoginForm = generate_form(User, exclude=['email'])
+LoginForm = generate_form(User, exclude=['email', 'active'])
 
 
 class BaseSettingsForm(BaseForm):
@@ -172,3 +173,5 @@ MessageForm = generate_form(Message,
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
 AppointmentForm = generate_form(Appointment, exclude=["house"])
 AppointmentsForm = generate_form(Appointment)
+HouseInformationCategoryForm = generate_form(HouseInformationCategory)
+AdminUserForm = generate_form(User, exclude=["password"])
