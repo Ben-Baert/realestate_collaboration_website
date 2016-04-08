@@ -223,7 +223,7 @@ class House(BaseModel):
         max_score = sum(10 * criterion.criterion.importance
                         for criterion in self.criteria
                         if not criterion.criterion.dealbreaker)
-        actual_score = sum((criterion.score or 0) *
+        actual_score = sum((criterion.safescore or 0) *
                            criterion.criterion.importance
                            for criterion in self.criteria
                            if not criterion.criterion.dealbreaker)
