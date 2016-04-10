@@ -64,7 +64,7 @@
         <div class="album text-muted">
     <div class="container">
         <div class="row">
-            {% for house in houses | sort(attribute='score', reverse=True)%}
+            {% for house in houses | sort(attribute='score', reverse=True) %}
                 <a href="{{url_for('house_detail', _id=house._id)}}">{{ housecard.render(house) }}</a>
             {% endfor %}
         </div>

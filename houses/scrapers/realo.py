@@ -11,6 +11,8 @@ class HouseSoldError(Exception):
 
 class Realo:
     def __init__(self, url):
+        if "realo" not in url:
+            raise ValueError("Url must be a realo url")
         self.url = url
         self.driver = webdriver.Firefox()
         self.driver.implicitly_wait(10)
@@ -66,47 +68,37 @@ class Realo:
             return int(price)
         except ValueError:
             if price == "Huis niet te koop":
-                raise HouseSoldError
-
-    def inhabitable_area(self):
-        return int(self
-                   .driver
-                   .find_element_by_css_selector(
+                raise HouseSoldError(
                     """
-                    #container
-                    > div
-                    > div:nth-child(1)
-                    > div
-                    > div.module.module-header
-                    > div:nth-child(2)
-                    > div
-                    > div
-                    > div:nth-child(3)
-                    > div.row.value
-                    > span
+                    It looks like the house is no longer available.
+                    Best to check manually though!
                     """)
-                   .text
-                   .replace("m2", ""))
 
-    def total_area(self):
-        return int(self
-                   .driver
-                   .find_element_by_css_selector(
-                    """
-                    #container
-                    > div
-                    > div.col.col-2-3.left.col-md-10.col-sm-12.push-md-1.col-xs-12
-                    > div > div.module.module-header
-                    > div:nth-child(2)
-                    > div
-                    > div
-                    > div:nth-child(4)
-                    > div.row.value
-                    > span
-                    """)
-                   .text
-                   .replace("m2", "")
-                   .replace(".", ""))
+    def area(self):
+        inhabitable = None
+        total = None
+        for item in (self
+                     .driver
+                     .find_elements_by_css_selector(
+                      """
+                      .basic-details > div > div
+                      """)):
+            title = item.find_element_by_css_selector(".title")
+            if title.text.lower() == "bewoonbaar":
+                inhabitable = int(item
+                                  .find_element_by_css_selector(".value")
+                                  .text
+                                  .replace("m2", "")
+                                  .replace(".", ""))
+            elif title.text.lower() == "grond":
+                total = int(item
+                            .find_element_by_css_selector(".value")
+                            .text
+                            .replace("m2", "")
+                            .replace(".", ""))
+            if inhabitable and total:
+                break
+        return inhabitable, total
 
     def information(self):
         for item in (self

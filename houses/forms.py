@@ -1,8 +1,10 @@
 import re
 from string import (ascii_lowercase,
                     ascii_uppercase)
+from peewee import DoesNotExist
 from flask.ext.login import current_user
 from flask_wtf import Form as FlaskForm
+from flask_pagedown.fields import PageDownField
 from wtforms.compat import iteritems
 from wtforms.fields import (TextField,
                             FieldList,
@@ -32,6 +34,7 @@ from .models import (User,
                      UserAvailability,
                      Message,
                      CriterionScore,
+                     HouseInformation,
                      HouseInformationCategory)
 from .utils import (camel_to_snake,
                     snake_to_camel,
@@ -72,9 +75,11 @@ class BaseMeta(FormMeta):
         return FormMeta.__call__(cls, *args, **kwargs)
 
 
-class FormMetaAlt(BaseMeta):
+class CriterionFormMeta(BaseMeta):
     def __call__(cls, house, *args, **kwargs):
         for criterion in house.criteria:
+            if criterion.safescore:  # OPTIONAL; does not allow editing!
+                continue
             if not criterion.criterion.dealbreaker:
                 field = IntegerField(criterion.criterion.name,
                              default=criterion.score,
@@ -86,6 +91,18 @@ class FormMetaAlt(BaseMeta):
                                      description=criterion.criterion.formula,
                                      )
             setattr(cls, criterion.criterion.name, field)
+        return BaseMeta.__call__(cls, *args, **kwargs)
+
+
+class InformationFormMeta(BaseMeta):
+    def __call__(cls, house, *args, **kwargs):
+        for category in HouseInformationCategory.select():
+            house_information, _ = (HouseInformation
+                                    .get_or_create(category=category._id,
+                                                   house=house._id))
+            field = TextField(category.name,
+                              default=house_information.value)
+            setattr(cls, category.short, field)
         return BaseMeta.__call__(cls, *args, **kwargs)
 
 
@@ -111,7 +128,11 @@ class BaseForm(FlaskForm, metaclass=BaseMeta):
         return d
 
 
-class CriterionScoreForm(BaseForm, metaclass=FormMetaAlt):
+class CriterionScoreForm(BaseForm, metaclass=CriterionFormMeta):
+    pass
+
+
+class InformationForm(BaseForm, metaclass=InformationFormMeta):
     pass
 
 
@@ -164,14 +185,28 @@ SettingsForm = generate_form(User,
                               "email": dict(validators=[Email()])
                               })
 
-CriterionForm = generate_form(Criterion)
+class UnderScoreConverter(ModelConverter):
+    def convert(self, model, field, field_args):
+        if field.name.startswith("_"):
+            field.name = field.name[1:]
+        return super().convert(model, field, field_args)
 
-MessageForm = generate_form(Message,
-                            exclude=["author", "house", "dt"],
-                            converter=house_hidden)
+underscore_converter = UnderScoreConverter()
+
+CriterionForm = generate_form(Criterion, converter=underscore_converter)
+
+converter = ModelConverter(overrides={"password": PageDownField})
+
+class MessageForm(BaseForm):
+    body = PageDownField()
 
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
 AppointmentForm = generate_form(Appointment, exclude=["house"])
 AppointmentsForm = generate_form(Appointment)
-HouseInformationCategoryForm = generate_form(HouseInformationCategory)
+
+
+
+
+HouseInformationCategoryForm = generate_form(HouseInformationCategory,
+                                             converter=underscore_converter)
 AdminUserForm = generate_form(User, exclude=["password"])

@@ -10,26 +10,32 @@
 </div>
     <table class="table">
         <thead>
+            <th>Short</th>
             <th>Name</th>
             <th>Importance</th>
             <th>Dealbreaker</th>
             <th>Formula</th>
             <th>Comments</th>
+            <th>Positive description</th>
+            <th>Negative description</th>
             <th></th>
             <th></th>
         </thead>
         <tbody>
             {% for criterion in criteria %}
                 <tr>
+                    <td>{{ criterion.short }}</td>
                     <td>{{ criterion.name }}</td>
                     <td>{{ criterion.importance }}</td>
                     <td>{{ criterion.dealbreaker }}</td>
                     <td>{{ criterion.formula }}</td>
                     <td>{{ criterion.comments }}</td>
+                    <td>{{ criterion._positive_description }}</td>
+                    <td>{{ criterion._negative_description }}</td>
                     <td><a href="{{url_for('criterion', _id=criterion._id)}}">Edit</a></td>
                     
-                    <td>{% if not criteria.builtin %}Delete{% endif %}</td>
-                    
+                    <td>{% if not criterion.builtin %}Delete{% endif %}</td>
+
                 </tr>
             {% endfor %}
         </tbody>

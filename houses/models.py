@@ -1,7 +1,8 @@
 from datetime import datetime
 from flask.ext.login import UserMixin, current_user
 from geopy.distance import vincenty
-from peewee import (SqliteDatabase,
+from playhouse.sqlite_ext import SqliteExtDatabase
+from peewee import (
                     Model,
                     CharField,
                     IntegrityError,
@@ -11,14 +12,20 @@ from peewee import (SqliteDatabase,
                     FloatField,
                     ForeignKeyField,
                     DateTimeField,
-                    PrimaryKeyField)
+                    PrimaryKeyField,
+                    fn,
+                    DoesNotExist)
+from playhouse.hybrid import hybrid_method
+from playhouse.hybrid import hybrid_property
+from peewee import Expression
+from peewee import OP
 from .app import bcrypt, celery
 from .utils import to_snakecase
 import houses.criteria
 
 
 
-database = SqliteDatabase('houses.db')
+database = SqliteExtDatabase('houses.db', threadlocals=True)
 
 
 class UserNotAvailableError(Exception):
@@ -52,6 +59,23 @@ class BaseModel(Model):
 
     def __repr__(self):
         return self._id
+
+    @classmethod
+    def get(cls, *args, **kwargs):
+        """
+        Hackish way to deal with properties while
+        maintaining compatibility with Peewee
+        """
+        if args:
+            return super().get(*args, **kwargs)
+        defaults = kwargs.pop('defaults', {})
+        query = cls.select()
+        for field, value in kwargs.items():
+            if '__' in field:
+                query = query.filter(**{field: value})
+            else:
+                query = query.where(getattr(cls, field) == value)
+        return query.get()
 
 
 class User(BaseModel, UserMixin):
@@ -99,19 +123,22 @@ class User(BaseModel, UserMixin):
 
 class Criterion(BaseModel):
     short = CharField()
-    name = CharField(max_length=30)
+    name = CharField(max_length=30, null=True)
     dealbreaker = BooleanField(default=False)
     importance = IntegerField(default=0, null=True)
     formula = TextField(null=True)
     explanation = TextField(null=True)
+    _positive_description = TextField(null=True)  # used in positive aspects list
+    _negative_description = TextField(null=True)  # used in negative aspects list and
+                                                 # in warnings
 
-    @property
+    @hybrid_property
     def clean_name(self):
         return to_snakecase(self.name)
 
     @property
     def builtin(self):
-        return hasattr(self.clean_name, 'criteria')
+        return getattr(houses.criteria, self.short, None)
 
     def delete_instance(self, *args, **kwargs):
         if self.builtin:
@@ -119,6 +146,22 @@ class Criterion(BaseModel):
             '''
             You can't just remove a builtin criterion.
             ''')
+
+    @property
+    def positive_description(self):
+        return self._positive_description or self.name
+
+    @positive_description.setter
+    def positive_description(self, value):
+        self._positive_description = value
+
+    @property
+    def negative_description(self):
+        return self._negative_description or self.name
+
+    @negative_description.setter
+    def negative_description(self, value):
+        self._negative_description = value
 
     def __repr__(self):
         return self.name
@@ -145,6 +188,9 @@ class House(BaseModel):
     price = IntegerField()
     # land_only = BooleanField(default=False)
     sold = BooleanField(default=False)
+
+    inhabitable_area = IntegerField()
+    total_area = IntegerField()
 
     address = CharField()
     lat = FloatField(null=True)
@@ -204,9 +250,44 @@ class House(BaseModel):
         self._main_pictures = None
 
     @property
+    def has_dealbreakers(self):
+        if self.dealbreakers:
+            return True
+        return False
+
+    @property
     def dealbreakers(self):
-        return any(criterion.score == 0 and criterion.criterion.dealbreaker
-                   for criterion in self.criteria)
+        return [criterion
+                for criterion in self.criteria
+                if criterion.safescore == 0 and
+                criterion.dealbreaker]
+
+    @property
+    def aspects(self):
+        return (criterion
+                for criterion in self.criteria
+                if not criterion.dealbreaker and
+                criterion.safescore)
+
+    @property
+    def positive_aspects(self):
+        return (aspect
+                for aspect in self.aspects
+                if aspect.safescore > 5)
+
+    @property
+    def negative_aspects(self):
+        return (aspect
+                for aspect in self.aspects
+                if aspect.safescore <= 5)
+
+    @property
+    def potential_problems(self):
+        return (criterion 
+                for criterion in self.criteria 
+                if not criterion.safescore)
+    
+    
 
     @property
     def score(self):
@@ -218,33 +299,64 @@ class House(BaseModel):
         This is not very efficient, but will be refactored
         (or so I hope, at least) later if necessary.
         """
-        if self.dealbreakers:
+        if self.has_dealbreakers:
             return 0
-        max_score = sum(10 * criterion.criterion.importance
+        max_score = sum(10 * criterion.importance
                         for criterion in self.criteria
-                        if not criterion.criterion.dealbreaker)
-        actual_score = sum((criterion.safescore or 0) *
-                           criterion.criterion.importance
+                        if criterion.safescore and
+                        not criterion.dealbreaker)
+        actual_score = sum(criterion.safescore * criterion.importance
                            for criterion in self.criteria
-                           if not criterion.criterion.dealbreaker)
+                           if criterion.safescore and
+                           not criterion.dealbreaker)
         try:
-            return round(actual_score / max_score * 100)
+            return round((actual_score / max_score) * 100)
         except (ZeroDivisionError, TypeError):
             return 0
 
     def __getattr__(self, short):
-        #try:
-        category = HouseInformationCategory.get(HouseInformationCategory.short == short)
-        return HouseInformation.get(HouseInformation.house == self._id,
+        try:
+            category = HouseInformationCategory.get(HouseInformationCategory._short == short)
+            return HouseInformation.get(HouseInformation.house == self._id,
                                         HouseInformation.category == category).value
-        #except AttributeError:
-        #    raise NotImplementedError("Something went wrong! {}".format(short)) #return None
+        except (DoesNotExist, AttributeError):
+            return None
+
+
+@database.func()
+def snakecase(val):
+    return to_snakecase(val)
 
 
 class HouseInformationCategory(BaseModel):
-    short = CharField(unique=True, null=True)
-    name = CharField(unique=True, null=True)
-    realo_name = CharField(unique=True)
+    _short = CharField(unique=True, null=True)
+    _name = CharField(unique=True, null=True)
+    _realo_name = CharField(unique=True)
+
+    @property
+    def short(self):
+        return (self._short or
+                to_snakecase(self.name))
+
+    @short.setter
+    def short(self, value):
+        self._short = value
+
+    @property
+    def name(self):
+        return self._name or self._realo_name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def realo_name(self):
+        return self._realo_name or self._name
+
+    @realo_name.setter
+    def realo_name(self, value):
+        self._realo_name = value
 
     def __repr__(self):
         return "{}: {}".format(self.__class__.__name__, self.name)
@@ -253,11 +365,11 @@ class HouseInformationCategory(BaseModel):
 class HouseInformation(BaseModel):
     house = ForeignKeyField(House, related_name='information')
     category = ForeignKeyField(HouseInformationCategory)
-    value = CharField()
+    value = CharField(null=True)
 
-    @property
+    @hybrid_property
     def name(self):
-        return self.category.name or self.category.realo_name
+        return self.category.name
 
     def __repr__(self):
         return "{} information for house in {}: {}".format(self.category.name,
@@ -266,28 +378,24 @@ class HouseInformation(BaseModel):
 
 
 class CriterionScore(BaseModel):
-    """
-    Set metaclass to detect if builtin.
-    If so, set default value for score to the return
-    value of the builtin function.
-    """
     criterion = ForeignKeyField(Criterion, related_name='houses')
     house = ForeignKeyField(House, related_name='criteria')
     score = IntegerField(null=True)
     # , default=self.defaultscore)  # range 0-10, if dealbreaker range 0-1
     comment = TextField(null=True)
 
-    @property
-    def name(self):
-        return self.criterion.name
+    def __getattr__(self, name):
+        return getattr(self.criterion, name, None)
 
-    @property
-    def short(self):
-        return self.criterion.short
+    def __lt__(self, other):
+        if self.dealbreaker:
+            pass
 
     @property
     def safescore(self):
-        return self.score or self.defaultscore()
+        if self.score is not None:  # making sure we catch 0/False
+            return self.score
+        return self.defaultscore()
 
     @property
     def dealbreaker_failed(self):
@@ -302,17 +410,13 @@ class CriterionScore(BaseModel):
         return self.safescore is None
 
     def defaultscore(self):
-        print("in defaultscore")
-        #try:
-        return getattr(houses.criteria, self.short)(self.house)
-        #except AttributeError:
-        #    print("fuck!")
-        #    return None
-        #except TypeError:
-        #    raise NotImplementedError(
-        #        """
-        #       Excepted a function!
-        #        """)
+        try:
+            return getattr(houses.criteria, self.short)(self.house)
+        except AttributeError as e:
+            print(e)
+            return None
+        except TypeError as e:
+            raise TypeError(e, self.short, self.house)
 
     def __repr__(self):
         return "{} score for house in {}: {}".format(self.criterion.name,
@@ -346,7 +450,7 @@ class Message(CustomBase):
         return obj
 
     def __repr__(self):
-        return "{} by {} to house in {} posted at {}: {}".format(self.__class__.__name,
+        return "{} by {} to house in {} posted at {}: {}".format(self.__class__.__name__,
                                                                  self.author.username,
                                                                  self.house.town,
                                                                  self.body,

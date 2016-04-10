@@ -6,6 +6,10 @@ from flask.ext.login import LoginManager
 from flask.ext.bootstrap import Bootstrap
 from flask.ext.mail import Mail, Message
 from flask_googlemaps import GoogleMaps
+from flask_pagedown import PageDown
+from flaskext.markdown import Markdown
+
+
 
 app = Flask(__name__)
 app.config.from_object('config')
@@ -22,6 +26,10 @@ Bootstrap(app)
 mail = Mail(app)
 
 GoogleMaps(app)
+
+pagedown = PageDown(app)
+
+Markdown(app)
 
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
@@ -126,5 +134,30 @@ def setup_database():
     except UserNotAvailableError:
         pass
 
+
+@app.before_first_request
+def setup_builtin_criteria():
+    from .criteria import criteria_list
+    from .models import Criterion, House, CriterionScore
+    print(criteria_list)
+    for short, name, dealbreaker, importance in criteria_list:
+        try:
+            criterion = Criterion.get(short=short)
+        except DoesNotExist:
+            criterion = Criterion.create(short=short,
+                             name=name,
+                             dealbreaker=dealbreaker,
+                             importance=importance)
+        for house in House.select():
+            CriterionScore.get_or_create(house=house, criterion=criterion)
+
+@app.before_first_request
+def setup_information():
+    from .models import HouseInformationCategory
+    INFORMATION = [
+    ("year", "Year", "Bouwjaar"),
+    ("cadastral_income", "Cadastral income", "Kadastraal Inkomen")]
+    for short, name, realo_name in INFORMATION:
+        HouseInformationCategory.get_or_create(_short=short, _name=name, _realo_name=realo_name)
 
 from .controllers import *

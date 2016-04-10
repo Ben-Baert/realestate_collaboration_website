@@ -23,7 +23,8 @@ from .forms import (LoginForm,
                     AppointmentsForm,
                     CriterionScoreForm,
                     HouseInformationCategoryForm,
-                    AdminUserForm)
+                    AdminUserForm,
+                    InformationForm)
 from .models import (User,
                      House,
                      Notification,
@@ -32,7 +33,9 @@ from .models import (User,
                      Appointment,
                      HouseInformation,
                      CriterionScore,
-                     HouseInformationCategory)
+                     HouseInformation,
+                     HouseInformationCategory,
+                     fn)
 from .scrapers import Realo
 
 
@@ -53,14 +56,17 @@ def admin_required(func):
         return func(*args, **kwargs)
     return decorated_view
 
-
-def ownership_required(func):
-    @wraps(func)
-    def decorated_view(*args, **kwargs):
-        if not current_user.is_admin or current_user.is_owner:  # EDIT!
-            return abort(403)
-        return func(*args, **kwargs)
-    return decorated_view
+def ownership_required(model):
+    def outer(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            instance = model.get(model._id == kwargs['_id'])
+            if not (current_user.is_admin or
+                    instance.author == current_user):  # EDIT!
+                return abort(403)
+            return func(*args, **kwargs)
+        return inner
+    return outer
 
 
 ERROR_MESSAGES = {
@@ -96,7 +102,6 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         try:
-            print(form.username.data)
             user = User.get(username=form.username.data)
         except DoesNotExist:
             flash('User does not exist')
@@ -173,14 +178,16 @@ def settings():
 
 @celery.task
 def add_realo_house(url):
-    print("started")
     with app.app_context():
         with Realo(url) as realo_house:
             lat, lng = realo_house.lat_lng()
+            inhabitable_area, total_area = realo_house.area()
             house = House.create(
                         added_by=current_user._id,
                         seller=realo_house.seller(),
                         address=realo_house.address(),
+                        inhabitable_area=inhabitable_area,
+                        total_area=total_area,
                         lat=lat,
                         lng=lng,
                         description=realo_house.description(),
@@ -192,7 +199,7 @@ def add_realo_house(url):
 
             for information in realo_house.information():
                 category, _ = (HouseInformationCategory
-                               .get_or_create(realo_name=information[0]))
+                               .get_or_create(_realo_name=information[0]))
                 HouseInformation.create(
                     house=house,
                     category=category,
@@ -232,11 +239,31 @@ def houses():
 @login_required
 def house_detail(_id):
     house = get_object_or_404(House, House._id == _id)
+    if house.dealbreakers:
+        flash("This house has serious issues: " +
+              ', '.join(dealbreaker.negative_description
+                        for dealbreaker in house.dealbreakers))
     houses = House.select()
 
     message_form = MessageForm()
     criterionscore_form = CriterionScoreForm(house=house)
     appointment_form = AppointmentForm()
+    information_form = InformationForm(house=house)
+
+    if information_form.validate_on_submit():
+        for name, value in information_form.data.items():
+            if not value:
+                continue
+            house_information_category = HouseInformationCategory.get(
+                (HouseInformationCategory._short == name) |
+                (fn.snakecase(HouseInformationCategory._name) == name) |
+                (fn.snakecase(HouseInformationCategory._realo_name) == name))
+            house_information, _ = HouseInformation.get_or_create(category=house_information_category._id,
+                                                                  house=house._id)
+            house_information.value = value
+            house_information.save()
+        flash("Information updated")
+        return redirect(url_for('house_detail', _id=_id))
 
     if message_form.validate_on_submit():
         message = message_form.create_object(Message, house=house._id)
@@ -245,14 +272,19 @@ def house_detail(_id):
 
     if criterionscore_form.validate_on_submit():
         for name, score in criterionscore_form.data.items():
-            criterion = Criterion.get(Criterion.name == name)
+            criterion = Criterion.get(name=name)
             criterionscore = CriterionScore.get(
-                CriterionScore.criterion == criterion._id,
-                CriterionScore.house == house._id)
-            criterionscore.score = int(score)
+                criterion=criterion._id,
+                house=house._id)
+            try:
+                criterionscore.score = int(score)
+            except TypeError:
+                criterionscore.score = None
             criterionscore.save()
         flash('Criteria updated')
         return redirect(url_for('house_detail', _id=_id))
+
+
 
     if appointment_form.validate_on_submit():
         appointment = appointment_form.create_object(
@@ -266,7 +298,8 @@ def house_detail(_id):
                            houses=houses,
                            criterionscore_form=criterionscore_form,
                            message_form=message_form,
-                           appointment_form=appointment_form)
+                           appointment_form=appointment_form,
+                           information_form=information_form)
 
 
 @app.route('/notification/<int:_id>/')
@@ -274,7 +307,7 @@ def notification(_id):
     url_endpoints = {'house': 'house_detail',
                      'message': 'message',
                      'appointment': 'appointment'}
-    notification_object = Notification.get(Notification._id == _id)
+    notification_object = Notification.get(_id=_id)
     notification_object.read = True
     notification_object.save()
     return redirect(url_for('house_detail',
@@ -308,7 +341,7 @@ def criteria():
 
 @app.route('/criterion/<int:_id>/', methods=["GET", "POST"])
 def criterion(_id):
-    criterion = Criterion.get(Criterion._id == _id)
+    criterion = Criterion.get(_id=_id)
     form = CriterionForm(obj=criterion)
     if form.validate_on_submit():
         form.edit_object(criterion)
@@ -346,3 +379,19 @@ def notifications():
 
     return render_template('notifications.html',
                            notifications=notifications)
+
+
+@app.route("/message/<int:_id>/", methods=["GET", "POST"])
+@ownership_required(Message)
+def message(_id):
+    message = Message.get(Message._id == _id)
+    #if not (message.author == current_user._id or current_user.is_admin):
+    #    abort(403)
+    message_form = MessageForm(obj=message)
+
+    if message_form.validate_on_submit():
+        message_form.edit_object(message)
+        return redirect(url_for('house_detail', _id=message.house._id))
+
+    return render_template("baseform.html",
+                            form=message_form)

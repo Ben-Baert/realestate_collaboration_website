@@ -10,16 +10,61 @@
 {% endblock %}
 
 {% block content %}
-
-{{ house.score }}%
 <div class="row">
     <div class="col-md-12">
         <div class="row">
-            <div class="col-md-3"><a href="{{house.realo_url}}">{{ house.town }}</a></div>
-            <div class="col-md-3">€{{ '{0:,}'.format(house.price | int) }}</br></div>
-            <div class="col-md-6">
+            <div class="col-md-7"><a href="{{house.realo_url}}"><h5>{{ house.address }}</h5></a><small>{{house.lat}}, {{house.lng}}</small></div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Prijs
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>€{{ '{0:,}'.format(house.price | int) }}</b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Bewoonbaar
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ house.inhabitable_area }}m<sup>2</sup></b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Totaal
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ '{0:,}'.format(house.total_area) }}m<sup>2</sup></b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Score
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ house.score }}%</b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
             {% if not house.appointments %}
-                {% call _modal.modal(title="Make appointment", launch_text="Make appointment", form=True, show=show_modal) %}
+                {% call _modal.modal(title="Make appointment", launch_text="+", form=True, show=show_modal) %}
                     {{ _form.render(appointment_form, action_url=url_for('house_detail', _id=house._id)) }}
                 {% endcall %}
             {% else %}
@@ -37,7 +82,16 @@
                 {{ googlemap("location", lat=house.lat, lng=house.lng, markers=[(house.lat, house.lng)], style="height:400px;width:100%;margin:0;") }}
             </div>
         </div>
-        <h3>Information</h3>
+        {% if house.description %}
+                <h4>Description</h4>
+                <p>{{ house.description }}</p>
+        {% endif %}
+
+        <h3>Information <small>(
+        {% call _modal.modal(title="Edit information", launch_text="Edit", form=True, show=show_modal, _id="information", link_only=True) %}
+            {{ _form.render(information_form, action_url=url_for('house_detail', _id=house._id)) }}
+        {% endcall %}
+        )</small></h3>
         {% for row in house.information | batch(3) %}
         <div class="row">
             {% for information in row %}
@@ -56,14 +110,49 @@
             {% endfor %}
         </div>
         {% endfor %}
-        <h3>Criteria</h3>
-            {% for row in house.criteria | batch(3) %}
+        <h3>Aspects</h3>
+        <div class="row">
+            <div class="col-md-4">
+                <h5>Positive</h5>
+                <ul>
+                    {% for aspect in house.positive_aspects %}
+                        <li>{{ aspect.positive_description }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h5>Negative</h5>
+                <ul>
+                    {% for aspect in house.negative_aspects %}
+                        <li>{{ aspect.negative_description }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h5>(Potential) problems</h5>
+                <ul>
+                    {% for aspect in house.potential_problems %}
+
+                        <li>{{ aspect.name }}: {{ aspect.safescore }}</li>
+                    
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <h3>Criteria <small>(
+        {% call _modal.modal(title="Edit criteria scores", launch_text="Edit", form=True, show=show_modal, _id="criteria", link_only=True) %}
+                    If uncertain, type "?"
+                    {{ _form.render(criterionscore_form, action_url=url_for('house_detail', _id=house._id)) }}
+                {% endcall %}
+                )</small></h3>
+            {% for row in house.criteria | sort(attribute='importance', reverse=True) | batch(3) %}
             <div class="row">
                 {% for criterion in row %}
                     <div class="col-md-4">
                         <div class="row">
                             <div class="col-md-12">
-                                {{ criterion.name }}
+                                {{ criterion.name }} ({{ criterion.importance }})
                             </div>
                         </div>
                         <div class="row">
@@ -83,41 +172,42 @@
                 {% endfor %}
             </div>
             {% endfor %}
-        <div class="row">
-            <div class="col-md-12">
-                {% call _modal.modal(title="Edit criteria scores", launch_text="Edit criteria scores", form=True, show=show_modal, _id="criteria") %}
-                    If uncertain, type "?"
-                    {{ _form.render(criterionscore_form, action_url=url_for('house_detail', _id=house._id)) }}
-                {% endcall %}
-            </div>
-        </div>
+
+
         <h3>Messages</h3>
-        <div class="row">
-            <div>
-                <div class="col-md-12">
                     {% for message in house.messages %}
                         <div class="row message" id="message-{{message._id}}">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <b>{{ message.author.username }}</b>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 {{ message.readable_datetime() }}
                             </div>
-                            <div class="col-md-6">
-                                {{ message.body }}
+                            <div class="col-md-5">
+                                {{ message.body | markdown }}
                             </div>
+                            {% if message.author == current_user._id or current_user.is_admin %}
+                            <div class="col-md-1">
+                                Edit
+                            </div>
+                            <div class="col-md-1">
+                                Delete
+                            </div>
+                            {% endif %}
                         </div>
                     {% endfor %}
-                        <div class="row">
-                            <div class="col-md-12">
-                                {% call _form.render(message_form, action_url=url_for('house_detail', _id=house._id)) %}
-                                    {{ _form.render_field(message_form.body, label_visible=False) }}
-                                {% endcall %}
+                        {% call _form.render(message_form, action_url=url_for('house_detail', _id=house._id)) %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ message_form.body(only_input=True, class_="form-control") }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ message_form.body(only_preview=True) }}
+                                </div>
+                            </div>  
+                        {% endcall %}
                             </div>
                         </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
