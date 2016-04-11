@@ -22,7 +22,7 @@
                 </div>
                 <div class="row">
                     <div class="col-md-12">
-                        <b>€{{ '{0:,}'.format(house.price | int) }}</b>
+                        <b>{{ house.price | price }}</b>
                     </div>
                 </div>
             </div>
@@ -34,7 +34,7 @@
                 </div>
                 <div class="row">
                     <div class="col-md-12">
-                        <b>{{ house.inhabitable_area }}m<sup>2</sup></b>
+                        <b>{{ house.inhabitable_area | area }}</b>
                     </div>
                 </div>
             </div>
@@ -46,7 +46,7 @@
                 </div>
                 <div class="row">
                     <div class="col-md-12">
-                        <b>{{ '{0:,}'.format(house.total_area) }}m<sup>2</sup></b>
+                        <b>{{ house.total_area | area }}</b>
                     </div>
                 </div>
             </div>
@@ -98,25 +98,37 @@
                 <div class="col-md-4">
                     <div class="row">
                         <div class="col-md-12">
-                            {{information.name}}
+                            {{ information.name }}
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-12">
-                            <b>{{information.value}}</b>
+                            <b>{{ information.value | information }}</b>
                         </div>
                     </div>    
                 </div>
             {% endfor %}
         </div>
         {% endfor %}
-        <h3>Aspects</h3>
+
+        <h3>Features</h3>
+        <ul class="list-inline">
+            {% for feature in house.features %}
+                <li class="list-inline-item"><span class="label label-default">{{ feature.feature.name }}</span></li>
+            {% endfor %}
+        </ul>
+        <h3>Aspects <small>(
+        {% call _modal.modal(title="Edit criteria scores", launch_text="Edit", form=True, show=show_modal, _id="criteria", link_only=True) %}
+                    If uncertain, type "?"
+                    {{ _form.render(criterionscore_form, action_url=url_for('house_detail', _id=house._id)) }}
+                {% endcall %}
+                )</small></h3>
         <div class="row">
             <div class="col-md-4">
                 <h5>Positive</h5>
                 <ul>
                     {% for aspect in house.positive_aspects %}
-                        <li>{{ aspect.positive_description }}</li>
+                        <li>{{ aspect.positive_description }} ({{ aspect.safecomment }})</li>
                     {% endfor %}
                 </ul>
             </div>
@@ -124,28 +136,31 @@
                 <h5>Negative</h5>
                 <ul>
                     {% for aspect in house.negative_aspects %}
-                        <li>{{ aspect.negative_description }}</li>
+                        <li>{{ aspect.negative_description }} ({{ aspect.safecomment }})</li>
                     {% endfor %}
                 </ul>
             </div>
             <div class="col-md-4">
-                <h5>(Potential) problems</h5>
+                <h5>Actual problems</h5>
+                <ul>
+                    {% for aspect in house.actual_problems %}
+
+                        <li>{{ aspect.negative_description }} ({{ aspect.safecomment }})</li>
+                    
+                    {% endfor %}
+                </ul>
+                <h5>Potential problems</h5>
                 <ul>
                     {% for aspect in house.potential_problems %}
 
-                        <li>{{ aspect.name }}: {{ aspect.safescore }}</li>
+                        <li>{{ aspect.unknown_description }}</li>
                     
                     {% endfor %}
                 </ul>
             </div>
         </div>
-
-        <h3>Criteria <small>(
-        {% call _modal.modal(title="Edit criteria scores", launch_text="Edit", form=True, show=show_modal, _id="criteria", link_only=True) %}
-                    If uncertain, type "?"
-                    {{ _form.render(criterionscore_form, action_url=url_for('house_detail', _id=house._id)) }}
-                {% endcall %}
-                )</small></h3>
+        {#
+        <h3>Criteria</h3>
             {% for row in house.criteria | sort(attribute='importance', reverse=True) | batch(3) %}
             <div class="row">
                 {% for criterion in row %}
@@ -172,7 +187,7 @@
                 {% endfor %}
             </div>
             {% endfor %}
-
+        #}
 
         <h3>Messages</h3>
                     {% for message in house.messages %}

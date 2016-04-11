@@ -2,9 +2,8 @@ from datetime import datetime
 from flask.ext.login import UserMixin, current_user
 from geopy.distance import vincenty
 from playhouse.sqlite_ext import SqliteExtDatabase
-from peewee import (
-                    Model,
-                    CharField,
+from playhouse.signals import Model, post_init, post_save
+from peewee import (CharField,
                     IntegrityError,
                     BooleanField,
                     IntegerField,
@@ -12,6 +11,7 @@ from peewee import (
                     FloatField,
                     ForeignKeyField,
                     DateTimeField,
+                    DateField,
                     PrimaryKeyField,
                     fn,
                     DoesNotExist)
@@ -131,6 +131,7 @@ class Criterion(BaseModel):
     _positive_description = TextField(null=True)  # used in positive aspects list
     _negative_description = TextField(null=True)  # used in negative aspects list and
                                                  # in warnings
+    _unknown_description = TextField(null=True)
 
     @hybrid_property
     def clean_name(self):
@@ -163,6 +164,14 @@ class Criterion(BaseModel):
     def negative_description(self, value):
         self._negative_description = value
 
+    @property
+    def unknown_description(self):
+        return self._unknown_description or self.name
+
+    @unknown_description.setter
+    def unknown_description(self, value):
+        self._unknown_description = value
+
     def __repr__(self):
         return self.name
 
@@ -181,8 +190,8 @@ class House(BaseModel):
     class Meta:
         order_by = ('-sold',)
 
-    added_at = DateTimeField(default=datetime.now())
-    added_by = ForeignKeyField(User, related_name='houses_added')
+    added_on = DateField(default=datetime.now().date())
+    #added_by = ForeignKeyField(User, related_name='houses_added', null=True)
 
     seller = CharField()
     price = IntegerField()
@@ -267,7 +276,7 @@ class House(BaseModel):
         return (criterion
                 for criterion in self.criteria
                 if not criterion.dealbreaker and
-                criterion.safescore)
+                criterion.safescore is not None)
 
     @property
     def positive_aspects(self):
@@ -282,12 +291,19 @@ class House(BaseModel):
                 if aspect.safescore <= 5)
 
     @property
+    def actual_problems(self):
+        return (criterion
+                for criterion in self.criteria
+                if criterion.dealbreaker and
+                criterion.safescore == 0)
+    
+
+    @property
     def potential_problems(self):
-        return (criterion 
-                for criterion in self.criteria 
-                if not criterion.safescore)
-    
-    
+        return (criterion
+                for criterion in self.criteria
+                if criterion.dealbreaker and
+                criterion.safescore is None)
 
     @property
     def score(self):
@@ -323,15 +339,34 @@ class House(BaseModel):
             return None
 
 
+class UserHouseRejection(BaseModel):
+    user = ForeignKeyField(User, related_name='rejected_houses')
+    house = ForeignKeyField(House, related_name='uninterested_users')
+
+
+class UserHouseApproval(BaseModel):
+    user = ForeignKeyField(User, related_name='accepted_houses')
+    house = ForeignKeyField(House, related_name='interested_users')
+
+
 @database.func()
 def snakecase(val):
     return to_snakecase(val)
+
+class Feature(BaseModel):
+    name = CharField(max_length=15)
+
+
+class HouseFeature(BaseModel):
+    house = ForeignKeyField(House, related_name='features')
+    feature = ForeignKeyField(Feature, related_name='houses')
 
 
 class HouseInformationCategory(BaseModel):
     _short = CharField(unique=True, null=True)
     _name = CharField(unique=True, null=True)
     _realo_name = CharField(unique=True)
+    #dependent_criteria = TextField()
 
     @property
     def short(self):
@@ -362,6 +397,7 @@ class HouseInformationCategory(BaseModel):
         return "{}: {}".format(self.__class__.__name__, self.name)
 
 
+
 class HouseInformation(BaseModel):
     house = ForeignKeyField(House, related_name='information')
     category = ForeignKeyField(HouseInformationCategory)
@@ -377,12 +413,35 @@ class HouseInformation(BaseModel):
                                                            self.value)
 
 
+
+def after_save(sender, instance, created):
+    """
+    This refreshes all automated criteria for house xwhen
+    any information about house x is changed. Not very 
+    efficient, but this will do for now. 
+    The alternative is to keep a register of dependencies,
+    and only refresh those dependencies when information is
+    renewed.
+    Given that information is rarely changed, I don't think
+    it's worthwhile to implement this at this point.
+    """
+    to_be_updated = (CriterionScore
+                     .select()
+                     .where(CriterionScore.house == instance.house))
+    for item in to_be_updated:
+        print("updating" + str(item))
+        item.get_defaults()
+
+post_save.connect(after_save, sender=HouseInformation)
+
+
 class CriterionScore(BaseModel):
     criterion = ForeignKeyField(Criterion, related_name='houses')
     house = ForeignKeyField(House, related_name='criteria')
     score = IntegerField(null=True)
-    # , default=self.defaultscore)  # range 0-10, if dealbreaker range 0-1
     comment = TextField(null=True)
+    defaultscore = IntegerField(null=True)
+    defaultcomment = TextField(null=True)
 
     def __getattr__(self, name):
         return getattr(self.criterion, name, None)
@@ -395,7 +454,11 @@ class CriterionScore(BaseModel):
     def safescore(self):
         if self.score is not None:  # making sure we catch 0/False
             return self.score
-        return self.defaultscore()
+        return self.defaultscore
+
+    @property
+    def safecomment(self):
+        return self.comment or self.defaultcomment
 
     @property
     def dealbreaker_failed(self):
@@ -409,14 +472,24 @@ class CriterionScore(BaseModel):
     def score_unknown(self):
         return self.safescore is None
 
-    def defaultscore(self):
+    def prepared(self):
+        super().prepared()
+        self.set_defaults()
+
+    def set_defaults(self):
+        if (self.score or self.defaultscore) and (self.comment or self.defaultcomment):
+            return
         try:
-            return getattr(houses.criteria, self.short)(self.house)
+            self.get_defaults()
         except AttributeError as e:
             print(e)
-            return None
         except TypeError as e:
             raise TypeError(e, self.short, self.house)
+
+    def get_defaults(self):
+        self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.house)
+        self.save()
+
 
     def __repr__(self):
         return "{} score for house in {}: {}".format(self.criterion.name,

@@ -6,7 +6,7 @@ from flask import (redirect,
                    # g,
                    render_template,
                    abort)
-from peewee import DoesNotExist, SelectQuery
+from peewee import DoesNotExist, SelectQuery, IntegrityError
 from flask.ext.login import (login_required,
                              login_user,
                              current_user,
@@ -35,8 +35,11 @@ from .models import (User,
                      CriterionScore,
                      HouseInformation,
                      HouseInformationCategory,
+                     Feature,
+                     HouseFeature,
                      fn)
 from .scrapers import Realo
+from .celery_tasks import add_realo_house
 
 
 def get_object_or_404(query_or_model, *query):
@@ -176,41 +179,6 @@ def settings():
     return render_template('baseform.html', form=form)
 
 
-@celery.task
-def add_realo_house(url):
-    with app.app_context():
-        with Realo(url) as realo_house:
-            lat, lng = realo_house.lat_lng()
-            inhabitable_area, total_area = realo_house.area()
-            house = House.create(
-                        added_by=current_user._id,
-                        seller=realo_house.seller(),
-                        address=realo_house.address(),
-                        inhabitable_area=inhabitable_area,
-                        total_area=total_area,
-                        lat=lat,
-                        lng=lng,
-                        description=realo_house.description(),
-                        price=realo_house.price(),
-                        realo_url=url,
-                        thumbnail_pictures=realo_house.thumbnail_pictures(),
-                        main_pictures=realo_house.main_pictures(),
-                        )
-
-            for information in realo_house.information():
-                category, _ = (HouseInformationCategory
-                               .get_or_create(_realo_name=information[0]))
-                HouseInformation.create(
-                    house=house,
-                    category=category,
-                    value=information[1])
-
-            for criterion in Criterion.select():
-                CriterionScore.create(criterion=criterion, house=house)
-
-            Notification.create('house', house)
-
-
 @app.route('/houses/', methods=['GET', 'POST'])
 @login_required
 def houses():
@@ -220,7 +188,7 @@ def houses():
     if form.validate_on_submit():
         add_realo_house.delay(form.url.data)
 
-        flash("House created. It should be visible in a couple of minutes.")
+        flash("House created. It should be visible in a couple of minutes.", "info")
 
         return redirect(url_for('houses'))
 
@@ -239,10 +207,7 @@ def houses():
 @login_required
 def house_detail(_id):
     house = get_object_or_404(House, House._id == _id)
-    if house.dealbreakers:
-        flash("This house has serious issues: " +
-              ', '.join(dealbreaker.negative_description
-                        for dealbreaker in house.dealbreakers))
+    
     houses = House.select()
 
     message_form = MessageForm()
@@ -293,6 +258,10 @@ def house_detail(_id):
         flash('Appointment made')
         return redirect(url_for('house_detail', _id=_id))
 
+    if house.dealbreakers:
+        flash("This house has serious issues: " +
+              ', '.join(dealbreaker.negative_description
+                        for dealbreaker in house.dealbreakers), "warning")
     return render_template('house_detail.html',
                            house=house,
                            houses=houses,

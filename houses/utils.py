@@ -6,15 +6,12 @@ def google_maps_url(origin, destination):
     return "http://maps.googleapis.com/maps/api/distancematrix/json?origins={}&destinations={}&mode=driving&language=en-EN&sensor=false".format(origin, destination)
 
 
-def google_maps_request(origin, destination, t, raw=True):
+def google_maps_request(origin, destination, t):
     url = google_maps_url(origin, destination)
-    try:
-        r = requests.get(url).json()
-    except:  # EDIT
-        pass
-    if raw:
-        return r['rows'][0]['elements'][0][t]['value']
-    return r['rows'][0]['elements'][0][t]['text']
+    r = requests.get(url)
+    print(r.request.url)
+    r = r.json()
+    return r['rows'][0]['elements'][0][t]['value'], r['rows'][0]['elements'][0][t]['text']
 
 
 def travel_time(origin, destination):

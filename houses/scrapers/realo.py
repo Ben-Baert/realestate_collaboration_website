@@ -3,10 +3,60 @@ from selenium.common.exceptions import NoSuchElementException
 import re
 import ast
 from sortedcontainers import SortedSet
+import datetime
+from time import sleep
 
 
 class HouseSoldError(Exception):
     pass
+
+class RealoSearch:
+    def __init__(self, min_price=50000, max_price=200000, min_landsize=300, min_yearbuilt=1970, max_age=7):
+        min_date = datetime.datetime.now() - datetime.timedelta(days = max_age)
+        min_date = min_date.strftime("%Y-%m-%d")
+        url = "https://www.realo.be/nl/search/huis/te-koop?"
+        url += "priceMin={}&priceMax={}&landsizeMin={}&yearbuiltMin={}&firstListing={}".format(min_price,
+                                                                               max_price,
+                                                                               min_landsize,
+                                                                               min_yearbuilt,
+                                                                               min_date)
+        self.url = url
+        self.driver = webdriver.Firefox()
+        self.driver.implicitly_wait(10)
+        self.driver.get(self.url)
+        self.driver.find_element_by_css_selector("li.view-switch-item.list").click()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.driver.quit()
+
+
+
+    def add_houses(self):
+        print("starting add_houses")
+        for link in self.driver.find_elements_by_css_selector(
+            """
+            li.component-estate-list-grid-item  > div > div:nth-child(2) > a.link
+            """):
+            yield link.get_attribute("href")
+        try:
+            self.next_page()
+        except StopIteration:
+            return
+        else:
+            yield from self.add_houses()
+
+    def next_page(self):
+        try:
+            self.driver.find_element_by_css_selector(
+            """
+            .button-next
+            """).click()
+        except NoSuchElementException:
+            raise StopIteration
+
 
 
 class Realo:
@@ -29,6 +79,15 @@ class Realo:
             """
             a.font-medium:nth-child(1)
             """).text
+
+    def added_on(self):
+        date_string = self.driver.find_element_by_css_selector(
+        """
+        .no-bottom-border
+        > td:nth-child(1)
+        > span:nth-child(1)
+        """).text
+        return datetime.datetime.strptime(date_string, "%d/%m/%y")
 
     def address(self):
         return (self
@@ -114,6 +173,16 @@ class Realo:
                         > li
                         """)):
             yield item.text.split("\n")
+
+    def features(self):
+        features = (self
+                    .driver
+                    .find_element_by_css_selector(
+                    """
+                    .tags
+                    """))
+        for feature in features.find_elements_by_css_selector("li"):
+            yield feature.text.title()
 
     def epc(self):
         for item in self.information():

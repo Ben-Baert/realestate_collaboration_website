@@ -23,20 +23,20 @@
         </thead>
         <tbody>
             {% for criterion in criteria %}
-                <tr>
-                    <td>{{ criterion.short }}</td>
-                    <td>{{ criterion.name }}</td>
-                    <td>{{ criterion.importance }}</td>
-                    <td>{{ criterion.dealbreaker }}</td>
-                    <td>{{ criterion.formula }}</td>
-                    <td>{{ criterion.comments }}</td>
-                    <td>{{ criterion._positive_description }}</td>
-                    <td>{{ criterion._negative_description }}</td>
-                    <td><a href="{{url_for('criterion', _id=criterion._id)}}">Edit</a></td>
-                    
-                    <td>{% if not criterion.builtin %}Delete{% endif %}</td>
+            <tr>
+                <td>{{ criterion.short }}</td>
+                <td>{{ criterion.name }}</td>
+                <td>{{ criterion.importance }}</td>
+                <td>{{ criterion.dealbreaker }}</td>
+                <td>{{ criterion.formula }}</td>
+                <td>{{ criterion.comments }}</td>
+                <td>{{ criterion._positive_description }}</td>
+                <td>{{ criterion._negative_description }}</td>
+                <td><a href="{{url_for('criterion', _id=criterion._id)}}">Edit</a></td>
+                
+                <td>{% if not criterion.builtin %}Delete{% endif %}</td>
 
-                </tr>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

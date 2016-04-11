@@ -8,6 +8,7 @@ from flask.ext.mail import Mail, Message
 from flask_googlemaps import GoogleMaps
 from flask_pagedown import PageDown
 from flaskext.markdown import Markdown
+from jinja2.utils import Markup
 
 
 
@@ -156,8 +157,37 @@ def setup_information():
     from .models import HouseInformationCategory
     INFORMATION = [
     ("year", "Year", "Bouwjaar"),
-    ("cadastral_income", "Cadastral income", "Kadastraal Inkomen")]
+    ("cadastral_income", "Cadastral income", "Kadastraal Inkomen"),
+    ("spatial_planning", "Spatial planning", "Ruimtelijke ordening"),
+    ("epc", "EPC score", "EPC waarde"),
+    ("heating", "Heating", "Type verwarming"),
+    ("building", "Building", "Bebouwing")]
     for short, name, realo_name in INFORMATION:
         HouseInformationCategory.get_or_create(_short=short, _name=name, _realo_name=realo_name)
+
+@app.template_filter('information')
+def informationfilter(s):
+    return s or "?"
+
+@app.template_filter('dealbreakerscore')
+def dealbreakerscore(s):
+    if s == 0:
+        html = "X"
+    elif s == 1:
+        html = "OK"
+    else:
+        html = "?"
+    return Markup(html)
+
+
+
+@app.template_filter('price')
+def price(s):
+    return '€{0:,}'.format(s)
+
+
+@app.template_filter('area')
+def area(s):
+    return Markup('{0:,}m<sup>2</sup>'.format(s))
 
 from .controllers import *
