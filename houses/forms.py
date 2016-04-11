@@ -78,7 +78,7 @@ class BaseMeta(FormMeta):
 class CriterionFormMeta(BaseMeta):
     def __call__(cls, house, *args, **kwargs):
         for criterion in house.criteria:
-            if criterion.safescore:  # OPTIONAL; does not allow editing!
+            if criterion.defaultscore is not None:  # OPTIONAL; does not allow editing!
                 continue
             if not criterion.criterion.dealbreaker:
                 field = IntegerField(criterion.criterion.name,

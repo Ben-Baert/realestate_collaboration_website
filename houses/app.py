@@ -140,8 +140,9 @@ def setup_database():
 def setup_builtin_criteria():
     from .criteria import criteria_list
     from .models import Criterion, House, CriterionScore
-    print(criteria_list)
-    for short, name, dealbreaker, importance in criteria_list:
+    extra_criteria = [
+    ('privacy', 'Privacy', False, 10)]
+    for short, name, dealbreaker, importance in (criteria_list + extra_criteria):
         try:
             criterion = Criterion.get(short=short)
         except DoesNotExist:

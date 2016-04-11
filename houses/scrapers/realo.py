@@ -175,14 +175,16 @@ class Realo:
             yield item.text.split("\n")
 
     def features(self):
-        features = (self
-                    .driver
-                    .find_element_by_css_selector(
-                    """
-                    .tags
-                    """))
-        for feature in features.find_elements_by_css_selector("li"):
-            yield feature.text.title()
+        try:
+            features = (self
+                        .driver
+                        .find_element_by_css_selector(
+                        """
+                        .tags
+                        """))
+        except NoSuchElementException:
+            return [] 
+        return (feature.text.title() for feature in features.find_elements_by_css_selector("li"))
 
     def epc(self):
         for item in self.information():

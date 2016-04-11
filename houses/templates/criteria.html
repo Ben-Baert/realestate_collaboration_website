@@ -18,6 +18,7 @@
             <th>Comments</th>
             <th>Positive description</th>
             <th>Negative description</th>
+            <th>Unknown description</th>
             <th></th>
             <th></th>
         </thead>
@@ -32,6 +33,7 @@
                 <td>{{ criterion.comments }}</td>
                 <td>{{ criterion._positive_description }}</td>
                 <td>{{ criterion._negative_description }}</td>
+                <td>{{ criterion._unknown_description }}</td>
                 <td><a href="{{url_for('criterion', _id=criterion._id)}}">Edit</a></td>
                 
                 <td>{% if not criterion.builtin %}Delete{% endif %}</td>

@@ -131,7 +131,7 @@ class Criterion(BaseModel):
     _positive_description = TextField(null=True)  # used in positive aspects list
     _negative_description = TextField(null=True)  # used in negative aspects list and
                                                  # in warnings
-    _unknown_description = TextField(null=True)
+    _unknown_description = TextField(null=True)  # Should I use this?
 
     @hybrid_property
     def clean_name(self):
@@ -187,9 +187,6 @@ class Land(BaseModel):
 
 
 class House(BaseModel):
-    class Meta:
-        order_by = ('-sold',)
-
     added_on = DateField(default=datetime.now().date())
     #added_by = ForeignKeyField(User, related_name='houses_added', null=True)
 
@@ -226,11 +223,29 @@ class House(BaseModel):
     def appointment_proposals(self):
         pass
 
-    @classmethod
-    def next_appointment(self):
+    @hybrid_property
+    def approved(self):
         pass
 
-    @property
+    @hybrid_property
+    def rejected(self):
+        pass
+
+    @hybrid_property
+    def contested(self):
+        pass
+
+    @hybrid_method
+    def checked(self, user):
+        return (user in self.interested_users or
+                user in self.uninterested_users)
+
+    @hybrid_method
+    def unchecked(self, user):
+        return not (user in self.interested_users or
+                    user in self.uninterested_users)
+
+    @hybrid_property
     def town(self):
         return self.address.split()[-1]
 
@@ -258,7 +273,7 @@ class House(BaseModel):
     def main_pictures(self):
         self._main_pictures = None
 
-    @property
+    @hybrid_property
     def has_dealbreakers(self):
         if self.dealbreakers:
             return True
@@ -296,16 +311,15 @@ class House(BaseModel):
                 for criterion in self.criteria
                 if criterion.dealbreaker and
                 criterion.safescore == 0)
-    
 
     @property
     def potential_problems(self):
         return (criterion
                 for criterion in self.criteria
-                if criterion.dealbreaker and
+                if #criterion.dealbreaker and
                 criterion.safescore is None)
 
-    @property
+    @hybrid_property
     def score(self):
         """
         Calculates the score based on the items that have been filled in
@@ -347,6 +361,7 @@ class UserHouseRejection(BaseModel):
 class UserHouseApproval(BaseModel):
     user = ForeignKeyField(User, related_name='accepted_houses')
     house = ForeignKeyField(House, related_name='interested_users')
+    score = IntegerField(null=True)
 
 
 @database.func()
@@ -477,18 +492,23 @@ class CriterionScore(BaseModel):
         self.set_defaults()
 
     def set_defaults(self):
-        if (self.score or self.defaultscore) and (self.comment or self.defaultcomment):
+        if ((self.score is not None or self.defaultscore is not None) and
+         (self.comment or self.defaultcomment)):
             return
         try:
             self.get_defaults()
-        except AttributeError as e:
-            print(e)
+        
         except TypeError as e:
             raise TypeError(e, self.short, self.house)
 
     def get_defaults(self):
-        self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.house)
-        self.save()
+        try:
+            self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.house)
+            self.save()
+        except AttributeError as e:
+            print(e)
+            return
+            
 
 
     def __repr__(self):

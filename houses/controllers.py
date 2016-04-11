@@ -179,6 +179,15 @@ def settings():
     return render_template('baseform.html', form=form)
 
 
+@app.route('/house-approval-queue/', methods=["GET", "POST"])
+def house_approval_queue():
+    next_house = (House.select()
+                       .where(House.unchecked(current_user))
+                       .order_by(House.score))
+
+
+
+
 @app.route('/houses/', methods=['GET', 'POST'])
 @login_required
 def houses():
@@ -237,6 +246,9 @@ def house_detail(_id):
 
     if criterionscore_form.validate_on_submit():
         for name, score in criterionscore_form.data.items():
+            print(score)
+            if score is "":
+                continue
             criterion = Criterion.get(name=name)
             criterionscore = CriterionScore.get(
                 criterion=criterion._id,
@@ -244,7 +256,7 @@ def house_detail(_id):
             try:
                 criterionscore.score = int(score)
             except TypeError:
-                criterionscore.score = None
+                pass  # Don't set, otherwise this overrules the defaultscore!!
             criterionscore.save()
         flash('Criteria updated')
         return redirect(url_for('house_detail', _id=_id))
@@ -260,7 +272,7 @@ def house_detail(_id):
 
     if house.dealbreakers:
         flash("This house has serious issues: " +
-              ', '.join(dealbreaker.negative_description
+              ', '.join(dealbreaker.negative_description + (" (" + dealbreaker.safecomment + ")" if dealbreaker.safecomment else "")
                         for dealbreaker in house.dealbreakers), "warning")
     return render_template('house_detail.html',
                            house=house,
