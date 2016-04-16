@@ -10,9 +10,10 @@
     {% endif %}
     <div class="card-block">
     <p class="card-text">
-        <h4 class="card-title">{{ house.town }}</h4>
-        {{ '{0:,}'.format(house.price | int) }}</br>
-        Rating: {{ house.score }}%
+        <h4 class="card-title">{{ house.town | truncate(15)}}</h4>
+        {{ house.price | price }}</br>
+        Rating: {{ house.score }}%</br>
+        <span data-toggle="tooltip" data-placement="bottom" title="{{ house.status_details }}" class="label label-{% if house.status == 'accepted' %}success{% elif house.status == 'rejected' %}danger{% elif house.status == 'controversial' %}warning{% elif house.status == 'pending' %}default{% endif %}">{{ house.status | title }}</span>
     </p>
     </div>
 </div>

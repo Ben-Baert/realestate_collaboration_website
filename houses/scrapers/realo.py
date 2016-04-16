@@ -11,15 +11,30 @@ class HouseSoldError(Exception):
     pass
 
 class RealoSearch:
-    def __init__(self, min_price=50000, max_price=200000, min_landsize=300, min_yearbuilt=1970, max_age=7):
+    def __init__(self,
+                 include_houses=True,
+                 include_land=True,
+                 min_price=50000,
+                 max_price=200000,
+                 min_landsize=300,
+                 min_yearbuilt=1970,
+                 max_age=7):
         min_date = datetime.datetime.now() - datetime.timedelta(days = max_age)
         min_date = min_date.strftime("%Y-%m-%d")
-        url = "https://www.realo.be/nl/search/huis/te-koop?"
-        url += "priceMin={}&priceMax={}&landsizeMin={}&yearbuiltMin={}&firstListing={}".format(min_price,
+        search = []
+        if include_houses:
+            search.append("huis")
+        if include_land:
+            search.append("grond")
+        search = ','.join(search)
+        url = "https://www.realo.be/nl/search/{}/te-koop?".format(search)
+        url += "priceMin={}&priceMax={}&landsizeMin={}&yearbuiltMin={}&firstListing={}".format(
+                                                                               min_price,
                                                                                max_price,
                                                                                min_landsize,
                                                                                min_yearbuilt,
                                                                                min_date)
+        print(url)
         self.url = url
         self.driver = webdriver.Firefox()
         self.driver.implicitly_wait(10)
@@ -34,8 +49,7 @@ class RealoSearch:
 
 
 
-    def add_houses(self):
-        print("starting add_houses")
+    def houses_urls(self):
         for link in self.driver.find_elements_by_css_selector(
             """
             li.component-estate-list-grid-item  > div > div:nth-child(2) > a.link
@@ -46,7 +60,7 @@ class RealoSearch:
         except StopIteration:
             return
         else:
-            yield from self.add_houses()
+            yield from self.houses_urls()
 
     def next_page(self):
         try:
@@ -80,6 +94,12 @@ class Realo:
             a.font-medium:nth-child(1)
             """).text
 
+    def realestate_type(self):
+        d = self.driver.find_element_by_css_selector(".property-type").text.lower()
+        if "grond" in d:
+            return "land"
+        return "house"
+
     def added_on(self):
         date_string = self.driver.find_element_by_css_selector(
         """
@@ -87,7 +107,10 @@ class Realo:
         > td:nth-child(1)
         > span:nth-child(1)
         """).text
-        return datetime.datetime.strptime(date_string, "%d/%m/%y")
+        try:
+            return datetime.datetime.strptime(date_string, "%d/%m/%y")
+        except:
+            return None
 
     def address(self):
         return (self
@@ -186,10 +209,6 @@ class Realo:
             return [] 
         return (feature.text.title() for feature in features.find_elements_by_css_selector("li"))
 
-    def epc(self):
-        for item in self.information():
-            if item[0] == "EPC waarde":
-                return item[1]
 
     def description(self):
         try:

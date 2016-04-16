@@ -12,34 +12,30 @@ from flask.ext.login import (login_required,
                              current_user,
                              logout_user,
                              current_app)
-from .app import (app,
-                  celery)
+from .app import app
 from .forms import (LoginForm,
-                    HouseForm,
+                    RealestateForm,
                     SettingsForm,
-                    CriterionForm,
+                    RealestateCriterionForm,
                     MessageForm,
                     AppointmentForm,
                     AppointmentsForm,
-                    CriterionScoreForm,
-                    HouseInformationCategoryForm,
+                    RealestateCriterionScoreForm,
+                    RealestateInformationCategoryForm,
                     AdminUserForm,
-                    InformationForm)
+                    RealestateInformationForm)
 from .models import (User,
-                     House,
+                     Realestate,
                      Notification,
-                     Criterion,
+                     RealestateCriterion,
                      Message,
                      Appointment,
-                     HouseInformation,
-                     CriterionScore,
-                     HouseInformation,
-                     HouseInformationCategory,
-                     Feature,
-                     HouseFeature,
+                     RealestateInformation,
+                     RealestateCriterionScore,
+                     RealestateInformationCategory,
+                     UserRealestateReview,
                      fn)
-from .scrapers import Realo
-from .celery_tasks import add_realo_house
+from .celery_tasks import add_realo_realestate, generate_feed
 
 
 def get_object_or_404(query_or_model, *query):
@@ -94,7 +90,7 @@ for key in ERROR_MESSAGES.keys():
 @app.route('/')
 def home():
     if current_user.is_authenticated:
-        return redirect(url_for('houses'))
+        return redirect(url_for('properties'))
     return redirect(url_for('login'))
 
 
@@ -136,7 +132,7 @@ def users():
     return render_template("users.html", users=users)
 
 
-@app.route('/user/<int:_id>', methods=["GET", "POST"])
+@app.route('/user/<int:_id>/', methods=["GET", "POST"])
 @admin_required
 def user(_id):
     user = User.get(_id=_id)
@@ -148,10 +144,18 @@ def user(_id):
     return render_template("baseform.html", form=form)
 
 
+@app.route('/generate_feed/')
+@admin_required
+def feed():
+
+    generate_feed()
+    return "generating"
+
+
 @app.route('/information/', methods=["GET", "POST"])
 @admin_required
 def information():
-    information = HouseInformationCategory.select()
+    information = RealestateInformationCategory.select()
 
     return render_template("information.html",
                            information=information)
@@ -160,8 +164,8 @@ def information():
 @app.route('/information/<int:_id>/', methods=["GET", "POST"])
 @admin_required
 def information_detail(_id):
-    item = HouseInformationCategory.get(_id=_id)
-    form = HouseInformationCategoryForm(obj=item)
+    item = RealestateInformationCategory.get(_id=_id)
+    form = RealestateInformationCategoryForm(obj=item)
     if form.validate_on_submit():
         form.edit_object(item)
         return redirect(url_for('information'))
@@ -179,27 +183,46 @@ def settings():
     return render_template('baseform.html', form=form)
 
 
-@app.route('/house-approval-queue/', methods=["GET", "POST"])
-def house_approval_queue():
-    next_house = (House.select()
-                       .where(House.unchecked(current_user))
-                       .order_by(House.score))
+@app.route('/queue/')
+def queue():
+    try:
+        realestate = sorted(Realestate.full_queue(current_user), key=lambda x: (-x.score, -x._score))[0]
+        if realestate.dealbreakers:
+            flash('; '.join(dealbreaker.negative_description + (" (" + dealbreaker.safecomment + ")" if dealbreaker.safecomment else "")
+                        for dealbreaker in realestate.dealbreakers), "warning")
+    except IndexError:
+        flash("All properties have been reviewed. You have been redirected to the main properties page", "info")
+        return redirect(url_for('properties'))
+    return render_template('queue.html', realestate=realestate)
 
 
+@app.route('/review/')
+def review():
+    _id, status = int(request.args.get('_id')), request.args.get('status')
+    user_review, _ = UserRealestateReview.get_or_create(realestate=_id, user=current_user._id)
+    user_review.status = status
+    user_review.save()
+    return redirect(url_for('queue'))
 
 
-@app.route('/houses/', methods=['GET', 'POST'])
+@app.route("/properties/", methods=['GET', 'POST'], defaults={"categories": ['house', 'land']})
+@app.route('/properties/<list:categories>/', methods=['GET', 'POST'])
 @login_required
-def houses():
-    houses = House.select()
+def properties(categories):
+    page_nr = int(request.args.get('page') or 1)
+    realestate = Realestate.not_rejected().where(Realestate.realestate_type << categories)
+    total_nr_of_pages = realestate.count() // 12 + 1
+    current_realestate = realestate.paginate(page_nr, 12)
+    previous_page = page_nr - 1 if page_nr > 1 else None
+    next_page = page_nr + 1 if page_nr < total_nr_of_pages else None
 
-    form = HouseForm()
+    form = RealestateForm()
     if form.validate_on_submit():
-        add_realo_house.delay(form.url.data)
+        add_realo_realestate.delay(form.url.data)
 
-        flash("House created. It should be visible in a couple of minutes.", "info")
+        flash("Property created. It should be visible in a couple of minutes.", "info")
 
-        return redirect(url_for('houses'))
+        return redirect(url_for('properties'))
 
     elif request.method == "POST":  # submitted but errors
         show_modal = True
@@ -207,76 +230,75 @@ def houses():
         show_modal = False
 
     return render_template('houses_list.html',
-                           houses=houses,
+                           realestate=current_realestate,
                            form=form,
-                           show_modal=show_modal)
+                           show_modal=show_modal,
+                           previous_page=previous_page,
+                           next_page=next_page)
 
 
-@app.route('/houses/<int:_id>/', methods=["GET", "POST"])
+@app.route('/property/<int:_id>/', methods=["GET", "POST"])
 @login_required
-def house_detail(_id):
-    house = get_object_or_404(House, House._id == _id)
-    
-    houses = House.select()
+def realestate_detail(_id):
+    realestate = get_object_or_404(Realestate, Realestate._id == _id)
 
     message_form = MessageForm()
-    criterionscore_form = CriterionScoreForm(house=house)
+    criterionscore_form = RealestateCriterionScoreForm(realestate=realestate)
     appointment_form = AppointmentForm()
-    information_form = InformationForm(house=house)
+    information_form = RealestateInformationForm(realestate=realestate)
 
     if information_form.validate_on_submit():
         for name, value in information_form.data.items():
             if not value:
                 continue
-            house_information_category = HouseInformationCategory.get(
-                (HouseInformationCategory._short == name) |
-                (fn.snakecase(HouseInformationCategory._name) == name) |
-                (fn.snakecase(HouseInformationCategory._realo_name) == name))
-            house_information, _ = HouseInformation.get_or_create(category=house_information_category._id,
-                                                                  house=house._id)
-            house_information.value = value
-            house_information.save()
+            realestate_information_category = RealestateInformationCategory.get(
+                (RealestateInformationCategory._short == name) |
+                (fn.snakecase(RealestateInformationCategory._name) == name) |
+                (fn.snakecase(RealestateInformationCategory._realo_name) == name))
+            realestate_information, _ = RealestateInformation.get_or_create(category=realestate_information_category._id,
+                                                                  realestate=realestate._id)
+            realestate_information.value = value
+            realestate_information.save()
         flash("Information updated")
-        return redirect(url_for('house_detail', _id=_id))
+        return redirect(url_for('realestate_detail', _id=_id))
 
     if message_form.validate_on_submit():
-        message = message_form.create_object(Message, house=house._id)
-        Notification.create('message', house, message._id)
-        return redirect(url_for('house_detail', _id=_id))
+        message = message_form.create_object(Message, realestate=realestate._id)
+        Notification.create('message', realestate, message._id)
+        return redirect(url_for('realestate_detail', _id=_id))
 
     if criterionscore_form.validate_on_submit():
         for name, score in criterionscore_form.data.items():
             print(score)
             if score is "":
                 continue
-            criterion = Criterion.get(name=name)
-            criterionscore = CriterionScore.get(
+            criterion = RealestateCriterion.get(name=name)
+            criterionscore = RealestateCriterionScore.get(
                 criterion=criterion._id,
-                house=house._id)
+                realestate=realestate._id)
             try:
                 criterionscore.score = int(score)
             except TypeError:
                 pass  # Don't set, otherwise this overrules the defaultscore!!
             criterionscore.save()
         flash('Criteria updated')
-        return redirect(url_for('house_detail', _id=_id))
+        return redirect(url_for('realestate_detail', _id=_id))
 
 
 
     if appointment_form.validate_on_submit():
         appointment = appointment_form.create_object(
-            Appointment, house=house._id)
-        Notification.create('appointment', house, appointment._id)
+            Appointment, realestate=realestate._id)
+        Notification.create('appointment', realestate, appointment._id)
         flash('Appointment made')
-        return redirect(url_for('house_detail', _id=_id))
+        return redirect(url_for('realestate_detail', _id=_id))
 
-    if house.dealbreakers:
+    if realestate.dealbreakers:
         flash("This house has serious issues: " +
               ', '.join(dealbreaker.negative_description + (" (" + dealbreaker.safecomment + ")" if dealbreaker.safecomment else "")
-                        for dealbreaker in house.dealbreakers), "warning")
-    return render_template('house_detail.html',
-                           house=house,
-                           houses=houses,
+                        for dealbreaker in realestate.dealbreakers), "warning")
+    return render_template('queue.html',
+                           realestate=realestate,
                            criterionscore_form=criterionscore_form,
                            message_form=message_form,
                            appointment_form=appointment_form,
@@ -285,14 +307,14 @@ def house_detail(_id):
 
 @app.route('/notification/<int:_id>/')
 def notification(_id):
-    url_endpoints = {'house': 'house_detail',
+    url_endpoints = {'realestate': 'realestate_detail',
                      'message': 'message',
                      'appointment': 'appointment'}
     notification_object = Notification.get(_id=_id)
     notification_object.read = True
     notification_object.save()
-    return redirect(url_for('house_detail',
-                            _id=notification_object.house._id,
+    return redirect(url_for('realestate_detail',
+                            _id=notification_object.realestate._id,
                             _anchor=(notification_object.category +
                                      "-" +
                                      str(notification_object.object_id))))
@@ -301,12 +323,12 @@ def notification(_id):
 @app.route('/criteria/', methods=["GET", "POST"])
 @login_required
 def criteria():
-    criteria = Criterion.select()
-    form = CriterionForm()
+    criteria = RealestateCriterion.select()
+    form = RealestateCriterionForm()
     if form.validate_on_submit():
-        criterion = form.create_object(Criterion)
-        for house in House.select():
-            CriterionScore.create(criterion=criterion, house=house)
+        criterion = form.create_object(RealestateCriterion)
+        for realestate in Realestate.select():
+            RealestateCriterionScore.create(criterion=criterion, realestate=realestate)
         flash("Criterion created")
         return redirect(url_for('criteria'))
     elif request.method == "POST":
@@ -322,8 +344,8 @@ def criteria():
 
 @app.route('/criterion/<int:_id>/', methods=["GET", "POST"])
 def criterion(_id):
-    criterion = Criterion.get(_id=_id)
-    form = CriterionForm(obj=criterion)
+    criterion = RealestateCriterion.get(_id=_id)
+    form = RealestateCriterionForm(obj=criterion)
     if form.validate_on_submit():
         form.edit_object(criterion)
         flash('Criterion updated')
@@ -341,14 +363,13 @@ def appointments():
     form = AppointmentsForm()
     if form.validate_on_submit():
         appointment = form.create_object(Appointment)
-        house = House.get(appointment.house)
-        Notification.create('appointment', house._id, house.town)
+        realestate = Realestate.get(appointment.realestate)
+        Notification.create('appointment', realestate._id, realestate.town)
         flash("Appointment made")
 
     return render_template('appointments.html',
                            appointments=appointments,
-                           form=form,
-                           )
+                           form=form)
 
 
 @app.route("/notifications/")
@@ -372,7 +393,7 @@ def message(_id):
 
     if message_form.validate_on_submit():
         message_form.edit_object(message)
-        return redirect(url_for('house_detail', _id=message.house._id))
+        return redirect(url_for('realestate_detail', _id=message.house._id))
 
     return render_template("baseform.html",
                             form=message_form)

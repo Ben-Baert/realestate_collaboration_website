@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import total_ordering
 from flask.ext.login import UserMixin, current_user
 from geopy.distance import vincenty
 from playhouse.sqlite_ext import SqliteExtDatabase
@@ -22,10 +23,16 @@ from peewee import OP
 from .app import bcrypt, celery
 from .utils import to_snakecase
 import houses.criteria
+import functools
 
+"""
+Note on terminology:
+    Realestate is used in Python classes and objects
+    to represent any house or piece of land.
+    In strings, the term 'property' is used.
+"""
 
-
-database = SqliteExtDatabase('houses.db', threadlocals=True)
+database = SqliteExtDatabase('houses.db')
 
 
 class UserNotAvailableError(Exception):
@@ -35,6 +42,7 @@ class UserNotAvailableError(Exception):
 class BaseModel(Model):
     _id = PrimaryKeyField(primary_key=True)  # avoid shadowing built-in id
                                              # and/or unnecessary ambiguity
+
     def readable_date(self):
         return self.dt.strftime("%d/%m/%Y")
 
@@ -112,43 +120,47 @@ class User(BaseModel, UserMixin):
     def others(self):
         return User.select().where(User._id != self._id)
 
-    @property
+    @hybrid_property
     def is_admin(self):
         return self.username == "Ben"
 
-    @property
+    @hybrid_property
     def is_active(self):
         return self.active
 
 
-class Criterion(BaseModel):
+class RealestateCriterion(BaseModel):
     short = CharField()
     name = CharField(max_length=30, null=True)
+
     dealbreaker = BooleanField(default=False)
     importance = IntegerField(default=0, null=True)
+
     formula = TextField(null=True)
     explanation = TextField(null=True)
-    _positive_description = TextField(null=True)  # used in positive aspects list
-    _negative_description = TextField(null=True)  # used in negative aspects list and
-                                                 # in warnings
-    _unknown_description = TextField(null=True)  # Should I use this?
+
+    _positive_description = TextField(null=True)
+    _negative_description = TextField(null=True)
+    _unknown_description = TextField(null=True)
+
+    applies_to_house = BooleanField(null=True)
+    applies_to_land = BooleanField(null=True)
+
+    builtin = BooleanField(default=False)
 
     @hybrid_property
     def clean_name(self):
         return to_snakecase(self.name)
 
-    @property
-    def builtin(self):
-        return getattr(houses.criteria, self.short, None)
-
     def delete_instance(self, *args, **kwargs):
         if self.builtin:
             raise NotImplementedError(
-            '''
-            You can't just remove a builtin criterion.
-            ''')
+                """
+                You can't just remove a builtin criterion.
+                """)
+        return super().delete_instance(*args, **kwargs)
 
-    @property
+    @hybrid_property
     def positive_description(self):
         return self._positive_description or self.name
 
@@ -156,7 +168,7 @@ class Criterion(BaseModel):
     def positive_description(self, value):
         self._positive_description = value
 
-    @property
+    @hybrid_property
     def negative_description(self):
         return self._negative_description or self.name
 
@@ -164,7 +176,7 @@ class Criterion(BaseModel):
     def negative_description(self, value):
         self._negative_description = value
 
-    @property
+    @hybrid_property
     def unknown_description(self):
         return self._unknown_description or self.name
 
@@ -178,24 +190,47 @@ class Criterion(BaseModel):
     class Meta:
         order_by = ('-dealbreaker', '-importance')
 
-#class LatLngField(Field):
-#    pass
+
+@total_ordering
+class Status:
+    def __init__(self, int_value, string_value):
+        self.int_value = int_value
+        self.string_value = string_value
+
+    def __str__(self):
+        return self.string_value
+
+    def __lt__(self, other):
+        return self.int_value < other.int_value
+
+    def __eq__(self, other):
+        return self.int_value == other.int_value
+
+ACCEPTED = Status(4, "Accepted")
+CONTROVERSIAL = Status(3, "Controversial")
+PENDING = Status(2, "Pending")
+REJECTED = Status(1, "Rejected")
+
+@database.func()
+def rank_status(s):
+    print(s)
+    r = {"accepted": 4,
+         "controversial": 3,
+         "pending": 2,
+         "rejected": 1}
+    return r[s]
 
 
-class Land(BaseModel):
-    pass
-
-
-class House(BaseModel):
-    added_on = DateField(default=datetime.now().date())
-    #added_by = ForeignKeyField(User, related_name='houses_added', null=True)
+class Realestate(BaseModel):
+    realestate_type = CharField(choices=[('land', 'Land'),
+                                       ('house', 'House')])
+    added_on = DateField(null=True)
 
     seller = CharField()
     price = IntegerField()
-    # land_only = BooleanField(default=False)
     sold = BooleanField(default=False)
 
-    inhabitable_area = IntegerField()
+    inhabitable_area = IntegerField(null=True)  # null for land
     total_area = IntegerField()
 
     address = CharField()
@@ -203,7 +238,6 @@ class House(BaseModel):
     lng = FloatField(null=True)
 
     realo_url = CharField(null=True, unique=True)
-    immoweb_url = CharField(null=True, unique=True)
     description = CharField(null=True)
 
     visited = BooleanField(default=False)
@@ -211,39 +245,137 @@ class House(BaseModel):
     _thumbnail_pictures = TextField()
     _main_pictures = TextField()
 
-    def __repr__(self):
-        return self.town
 
+    def __repr__(self):
+        return self.address
+
+    @hybrid_method
     def distance_to(self, lat, lng):
         return vincenty((self.lat, self.lng), (lat, lng))
 
-    def nearby_houses(self):
+    @hybrid_method
+    def nearby_properties(self):
         pass
 
     def appointment_proposals(self):
         pass
 
-    @hybrid_property
-    def approved(self):
-        pass
+    @classmethod
+    def all(cls):
+        return cls.select()
+
+    @classmethod
+    def not_rejected(cls):
+        return (cls.select()
+                   .join(UserRealestateReview)
+                   .join(User)
+                   .where(UserRealestateReview.status != 'rejected')
+                   .group_by(cls._id)
+                   .having(fn.COUNT(User._id) > 0))
+
+    @classmethod
+    def not_rejected_by_current_user(cls):
+        return (cls.select().join(UserRealestateReview)
+                            .where((UserRealestateReview.status != 'rejected') &
+                                   (UserRealestateReview.user == current_user._id)))
+                            #.order_by(fn.rank_status(cls.status), cls.score))
+
+    @classmethod
+    def houses_only(cls):
+        return cls.select().where(cls.land_only == False)
+
+    @classmethod
+    def land_only(cls):
+        return cls.select().where(cls.land_only == True)
+
+    @classmethod
+    def full_queue(cls, user):
+        return cls.unreviewed_by(user).order_by(-cls.score)
+
+    @classmethod
+    def next_queue_item(cls, user):
+        return cls.full_queue(user).get()
+
+    def accept(self, user):
+        review, _ = UserRealestateReview.create_or_get(user=user._id,
+                                                       realestate=self._id)
+        review.status = 'accepted'
+        review.save()
+
+    def reject(self, user):
+        review, _ = UserRealestateReview.create_or_get(user=user._id,
+                                                       realestate=self._id)
+        review.status = 'rejected'
+        review.save()
+
+    @property
+    def status(self):
+        if self.reviews.count() < User.select().count():
+            return "pending"
+        if all(review.status == 'accepted' for review in self.reviews):
+            return "accepted"
+        if all(review.status == 'rejected' for review in self.reviews):
+            return "rejected"
+        return "controversial"
+
+    @property
+    def scorestatus(self):
+        return rank_status(self.status) ** 10 + self.score
+
+    @property
+    def status_details(self):
+        return '\n'.join(review.user.username + ": " + review.status for review in self.reviews)
+
+    @classmethod
+    def reviewed(cls, user):
+        return cls.select().join(UserRealestateReview).where(UserRealestateReview.user == user._id)
+
+    @classmethod
+    def unreviewed_by(cls, user):
+        return cls.select().where(~(cls._id << cls.reviewed(user)))
+
+    @hybrid_method
+    def accepted_by(self, user):
+        return (UserRealestateReview.get(realestate=self._id,
+                                         user=user._id)
+                is not None)
+
+    @classmethod
+    def accepted_properties(cls):
+        return (cls.select()
+                   .join(UserRealestateReview)
+                   .where(UserRealestateReview.status == 'approved')
+                   .having(fn.COUNT(UserRealestateReview._id) == 2)) #  HARDCODED USER COUNT
 
     @hybrid_property
     def rejected(self):
-        pass
+        return (UserRealestateReview.select()
+                                    .where(realestate=self._id, status='rejected')
+                                    .count() ==
+                User.select().count())
 
     @hybrid_property
     def contested(self):
-        pass
+        return (UserRealestateReview.get(realestate=self._id, status='accepted') is not None and
+                UserRealestateReview.get(realestate=self._id, status='rejected') is not None)
 
     @hybrid_method
     def checked(self, user):
-        return (user in self.interested_users or
-                user in self.uninterested_users)
+        return user._id in self.reviewers
 
     @hybrid_method
     def unchecked(self, user):
-        return not (user in self.interested_users or
-                    user in self.uninterested_users)
+        user_review = UserRealestateReview.get(UserRealestateReview.user == user._id,
+                                               UserRealestateReview.realestate == self._id)
+        return user_review is None
+
+    @property
+    def user_status(self):
+        try:
+            return UserRealestateReview.get(UserRealestateReview.user == current_user._id,
+                                            UserRealestateReview.realestate == self._id).status
+        except DoesNotExist:
+            return None
 
     @hybrid_property
     def town(self):
@@ -278,6 +410,12 @@ class House(BaseModel):
         if self.dealbreakers:
             return True
         return False
+
+    @property
+    def criteria(self):
+        if self.realestate_type == 'house':
+            return (criterion for criterion in self._criteria if criterion.applies_to_house)
+        return (criterion for criterion in self._criteria if criterion.applies_to_land)
 
     @property
     def dealbreakers(self):
@@ -319,8 +457,15 @@ class House(BaseModel):
                 if #criterion.dealbreaker and
                 criterion.safescore is None)
 
+    @property
+    def information(self):
+        if self.realestate_type == 'house':
+            return (info for info in self._information if info.category.applies_to_house)
+        return (info for info in self._information if info.category.applies_to_land)
+    
+
     @hybrid_property
-    def score(self):
+    def _score(self):
         """
         Calculates the score based on the items that have been filled in
         for this particular house. Obviously, the more items filled in,
@@ -329,11 +474,9 @@ class House(BaseModel):
         This is not very efficient, but will be refactored
         (or so I hope, at least) later if necessary.
         """
-        if self.has_dealbreakers:
-            return 0
         max_score = sum(10 * criterion.importance
                         for criterion in self.criteria
-                        if criterion.safescore and
+                        if criterion.safescore is not None and
                         not criterion.dealbreaker)
         actual_score = sum(criterion.safescore * criterion.importance
                            for criterion in self.criteria
@@ -344,44 +487,57 @@ class House(BaseModel):
         except (ZeroDivisionError, TypeError):
             return 0
 
+    @hybrid_property
+    def score(self):
+        if self.has_dealbreakers:
+            return 0
+        return self._score
+
+
     def __getattr__(self, short):
+        """
+        This method makes it very easy to get information
+        about a house. Instead of house.information.epc, one
+        can simply do house.epc.
+        """
         try:
-            category = HouseInformationCategory.get(HouseInformationCategory._short == short)
-            return HouseInformation.get(HouseInformation.house == self._id,
-                                        HouseInformation.category == category).value
+            category = RealestateInformationCategory.get(RealestateInformationCategory._short == short)
+            return RealestateInformation.get(RealestateInformation.realestate == self._id,
+                                             RealestateInformation.category == category).value
         except (DoesNotExist, AttributeError):
             return None
 
 
-class UserHouseRejection(BaseModel):
-    user = ForeignKeyField(User, related_name='rejected_houses')
-    house = ForeignKeyField(House, related_name='uninterested_users')
-
-
-class UserHouseApproval(BaseModel):
-    user = ForeignKeyField(User, related_name='accepted_houses')
-    house = ForeignKeyField(House, related_name='interested_users')
-    score = IntegerField(null=True)
+class UserRealestateReview(BaseModel):
+    user = ForeignKeyField(User, related_name='reviewed_realestate')
+    realestate = ForeignKeyField(Realestate, related_name='reviews')
+    status = CharField(choices=[('rejected', 'Rejected'),
+                                ('unsure', 'Unsure'),
+                                ('accepted', 'Accepted')], null=True)
 
 
 @database.func()
 def snakecase(val):
     return to_snakecase(val)
 
+
 class Feature(BaseModel):
     name = CharField(max_length=15)
 
 
-class HouseFeature(BaseModel):
-    house = ForeignKeyField(House, related_name='features')
-    feature = ForeignKeyField(Feature, related_name='houses')
+class RealestateFeature(BaseModel):
+    realestate = ForeignKeyField(Realestate, related_name='features')
+    feature = ForeignKeyField(Feature, related_name='realestate')
 
 
-class HouseInformationCategory(BaseModel):
+class RealestateInformationCategory(BaseModel):
     _short = CharField(unique=True, null=True)
     _name = CharField(unique=True, null=True)
     _realo_name = CharField(unique=True)
-    #dependent_criteria = TextField()
+
+    applies_to_house = BooleanField(null=True)
+    applies_to_land = BooleanField(null=True)
+    #  dependent_criteria = TextField()
 
     @property
     def short(self):
@@ -412,10 +568,9 @@ class HouseInformationCategory(BaseModel):
         return "{}: {}".format(self.__class__.__name__, self.name)
 
 
-
-class HouseInformation(BaseModel):
-    house = ForeignKeyField(House, related_name='information')
-    category = ForeignKeyField(HouseInformationCategory)
+class RealestateInformation(BaseModel):
+    realestate = ForeignKeyField(Realestate, related_name='_information')
+    category = ForeignKeyField(RealestateInformationCategory)
     value = CharField(null=True)
 
     @hybrid_property
@@ -423,36 +578,35 @@ class HouseInformation(BaseModel):
         return self.category.name
 
     def __repr__(self):
-        return "{} information for house in {}: {}".format(self.category.name,
-                                                           self.house.town,
+        return "{} information for property in {}: {}".format(self.category.name,
+                                                           self.realestate.town,
                                                            self.value)
-
 
 
 def after_save(sender, instance, created):
     """
-    This refreshes all automated criteria for house xwhen
-    any information about house x is changed. Not very 
-    efficient, but this will do for now. 
+    This refreshes all automated criteria for house when
+    any information about house x is changed. Not very
+    efficient, but this will do for now.
     The alternative is to keep a register of dependencies,
     and only refresh those dependencies when information is
     renewed.
     Given that information is rarely changed, I don't think
     it's worthwhile to implement this at this point.
     """
-    to_be_updated = (CriterionScore
+    to_be_updated = (RealestateCriterionScore
                      .select()
-                     .where(CriterionScore.house == instance.house))
+                     .where(RealestateCriterionScore.realestate == instance.realestate))
     for item in to_be_updated:
         print("updating" + str(item))
         item.get_defaults()
 
-post_save.connect(after_save, sender=HouseInformation)
+post_save.connect(after_save, sender=RealestateInformation)
 
 
-class CriterionScore(BaseModel):
-    criterion = ForeignKeyField(Criterion, related_name='houses')
-    house = ForeignKeyField(House, related_name='criteria')
+class RealestateCriterionScore(BaseModel):
+    criterion = ForeignKeyField(RealestateCriterion, related_name='realestate')
+    realestate = ForeignKeyField(Realestate, related_name='_criteria')
     score = IntegerField(null=True)
     comment = TextField(null=True)
     defaultscore = IntegerField(null=True)
@@ -460,10 +614,6 @@ class CriterionScore(BaseModel):
 
     def __getattr__(self, name):
         return getattr(self.criterion, name, None)
-
-    def __lt__(self, other):
-        if self.dealbreaker:
-            pass
 
     @property
     def safescore(self):
@@ -473,7 +623,7 @@ class CriterionScore(BaseModel):
 
     @property
     def safecomment(self):
-        return self.comment or self.defaultcomment
+        return self.comment or self.defaultcomment or self.safescore
 
     @property
     def dealbreaker_failed(self):
@@ -493,39 +643,39 @@ class CriterionScore(BaseModel):
 
     def set_defaults(self):
         if ((self.score is not None or self.defaultscore is not None) and
-         (self.comment or self.defaultcomment)):
+            (self.comment or self.defaultcomment)):
             return
         try:
             self.get_defaults()
-        
         except TypeError as e:
-            raise TypeError(e, self.short, self.house)
+            raise TypeError(e, self.short, self.realestate)
 
     def get_defaults(self):
+        if not self.builtin:
+            return
         try:
-            self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.house)
+            self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.realestate)
             self.save()
         except AttributeError as e:
             print(e)
             return
-            
-
 
     def __repr__(self):
-        return "{} score for house in {}: {}".format(self.criterion.name,
-                                                     self.house.town,
-                                                     self.score)
+        return "{} score for property in {}: {}".format(self.criterion.name,
+                                                        self.realestate.town,
+                                                        self.score)
 
 
 class Appointment(BaseModel):
-    house = ForeignKeyField(House, related_name='appointments')
+    realestate = ForeignKeyField(Realestate, related_name='appointments')
     dt = DateTimeField()
 
     class Meta:
         order_by = ('dt',)
 
     def __repr__(self):
-        return "Appointment for house in {} at {}".format(self.house.town, self.readable_datetime())
+        return ("Appointment for property in {} at {}"
+                .format(self.realestate.town, self.readable_datetime()))
 
 
 class CustomBase(BaseModel):
@@ -535,7 +685,7 @@ class CustomBase(BaseModel):
 
 class Message(CustomBase):
     author = ForeignKeyField(User, related_name='messages')
-    house = ForeignKeyField(House, related_name='messages')
+    realestate = ForeignKeyField(Realestate, related_name='messages')
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -543,11 +693,12 @@ class Message(CustomBase):
         return obj
 
     def __repr__(self):
-        return "{} by {} to house in {} posted at {}: {}".format(self.__class__.__name__,
-                                                                 self.author.username,
-                                                                 self.house.town,
-                                                                 self.body,
-                                                                 self.readable_datetime())
+        return ("{} by {} to property in {} posted at {}: {}"
+                .format(self.__class__.__name__,
+                        self.author.username,
+                        self.realestate.town,
+                        self.body,
+                        self.readable_datetime()))
 
     class Meta:
         order_by = ('dt',)
@@ -556,27 +707,29 @@ class Message(CustomBase):
 class Notification(CustomBase):
     user = ForeignKeyField(User)
     read = BooleanField(default=False)
-    house = ForeignKeyField(House, null=True)
+    realestate = ForeignKeyField(Realestate, null=True)
     category = CharField(choices=[('appointment', 'New appointment'),
                                   ('house', 'New house'),
+                                  ('land', 'New piece of land'),
                                   ('message', 'New message')])
     object_id = IntegerField()
 
     MESSAGES = {
         "house": "New house in {town} added by {username}",
-        "appointment": "New appointment for house in {town} made by {username}",
-        "message": "New message to house in {town} written by {username}"
+        "land": "New piece of land in {town} added by {username}",
+        "appointment": "New appointment for property in {town} made by {username}",
+        "message": "New message to property in {town} written by {username}"
     }
 
     @classmethod
-    def create(cls, category, house, object_id=None):
+    def create(cls, category, realestate, object_id=None):
         for user in current_user.others():
             print("User: " + user.username)
             obj = cls()
             obj.user = user._id
-            obj.house = house._id
+            obj.realestate = realestate._id
             obj.category = category
-            obj.object_id = object_id or house._id
+            obj.object_id = object_id or realestate._id
             try:
                 message_string = cls.MESSAGES[category]
             except KeyError:
@@ -586,8 +739,8 @@ class Notification(CustomBase):
                     The one you entered is {}.
                     """.format(", ".join(cls.MESSAGES.keys()), category))
             obj.body = message_string.format(
-                    **{"town": house.town,
-                     "username": current_user.username})
+                    **{"town": realestate.town,
+                       "username": current_user.username})
             obj.save()
             obj.body = (
                 """

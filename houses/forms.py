@@ -28,14 +28,14 @@ from wtfpeewee.orm import (model_form,
                            ModelConverter)
 from wtfpeewee.fields import ModelHiddenField
 from .models import (User,
-                     House,
-                     Criterion,
+                     Realestate,
+                     RealestateCriterion,
                      Appointment,
                      UserAvailability,
                      Message,
-                     CriterionScore,
-                     HouseInformation,
-                     HouseInformationCategory)
+                     RealestateCriterionScore,
+                     RealestateInformation,
+                     RealestateInformationCategory)
 from .utils import (camel_to_snake,
                     snake_to_camel,
                     to_snakecase)
@@ -75,10 +75,13 @@ class BaseMeta(FormMeta):
         return FormMeta.__call__(cls, *args, **kwargs)
 
 
-class CriterionFormMeta(BaseMeta):
-    def __call__(cls, house, *args, **kwargs):
-        for criterion in house.criteria:
-            if criterion.defaultscore is not None:  # OPTIONAL; does not allow editing!
+class RealestateCriterionFormMeta(BaseMeta):
+    def __call__(cls, realestate, *args, **kwargs):
+        for criterion in realestate.criteria:
+            if criterion.builtin:
+                continue
+            if ((realestate.realestate_type == 'house' and not criterion.applies_to_house) or
+                (realestate.realestate_type == 'land' and not criterion.applies_to_land)):
                 continue
             if not criterion.criterion.dealbreaker:
                 field = IntegerField(criterion.criterion.name,
@@ -94,14 +97,17 @@ class CriterionFormMeta(BaseMeta):
         return BaseMeta.__call__(cls, *args, **kwargs)
 
 
-class InformationFormMeta(BaseMeta):
-    def __call__(cls, house, *args, **kwargs):
-        for category in HouseInformationCategory.select():
-            house_information, _ = (HouseInformation
-                                    .get_or_create(category=category._id,
-                                                   house=house._id))
+class RealestateInformationFormMeta(BaseMeta):
+    def __call__(cls, realestate, *args, **kwargs):
+        for category in RealestateInformationCategory.select():
+            if ((realestate.realestate_type == 'house' and not category.applies_to_house) or
+                (realestate.realestate_type == 'land' and not category.applies_to_land)):
+                continue
+            realestate_information, _ = (RealestateInformation
+                                         .get_or_create(category=category._id,
+                                                        realestate=realestate._id))
             field = TextField(category.name,
-                              default=house_information.value)
+                              default=realestate_information.value)
             setattr(cls, category.short, field)
         return BaseMeta.__call__(cls, *args, **kwargs)
 
@@ -128,15 +134,15 @@ class BaseForm(FlaskForm, metaclass=BaseMeta):
         return d
 
 
-class CriterionScoreForm(BaseForm, metaclass=CriterionFormMeta):
+class RealestateCriterionScoreForm(BaseForm, metaclass=RealestateCriterionFormMeta):
     pass
 
 
-class InformationForm(BaseForm, metaclass=InformationFormMeta):
+class RealestateInformationForm(BaseForm, metaclass=RealestateInformationFormMeta):
     pass
 
 
-class HouseForm(FlaskForm):
+class RealestateForm(FlaskForm):
     url = TextField("URL", validators=[Required()])
 
     def validate_url(form, field):
@@ -193,7 +199,7 @@ class UnderScoreConverter(ModelConverter):
 
 underscore_converter = UnderScoreConverter()
 
-CriterionForm = generate_form(Criterion, converter=underscore_converter)
+RealestateCriterionForm = generate_form(RealestateCriterion, converter=underscore_converter)
 
 converter = ModelConverter(overrides={"password": PageDownField})
 
@@ -207,6 +213,6 @@ AppointmentsForm = generate_form(Appointment)
 
 
 
-HouseInformationCategoryForm = generate_form(HouseInformationCategory,
+RealestateInformationCategoryForm = generate_form(RealestateInformationCategory,
                                              converter=underscore_converter)
 AdminUserForm = generate_form(User, exclude=["password"])

@@ -19,10 +19,10 @@
 
 .card > img {
   margin-bottom: .75rem;
-  height: auto; 
+  height: 163px; 
   width: auto; 
   max-width: 100%; 
-  max-height: 280px;
+  max-height: 163px;
 }
 
 .card > .carousel {
@@ -47,30 +47,45 @@
   font-size: 85%;
 }
 
+
+
 </style>
 {% endblock %}
 
 {% block content %}
 
+<ul class="nav nav-stacked navbar-fixed-bottom sidebar nav-pills">
+  <li class="nav-item">
+    <a class="nav-link {% if request.path == url_for('properties', categories=['house', 'land']) %}active{% endif %}" href="{{url_for('properties', categories=['house', 'land'])}}">All</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.path == url_for('properties', categories=['house']) %}active{% endif %}" href="{{url_for('properties', categories=['house'])}}">Houses</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.path == url_for('properties', categories=['land']) %}active{% endif %}" href="{{url_for('properties', categories=['land'])}}">Land</a>
+  </li>
+</ul>
+
 <div class="row">
-    <div class="col-md-12">
-        {% call _modal.modal(title="Add new house", launch_text="Add new house", form=True, show=show_modal) %}
-            {{ _form.render(form, action_url=url_for('houses')) }}
-        {% endcall %}
-    </div>
+  {% call _modal.modal(title="Add new property", launch_text="Add new property", form=True, show=show_modal) %}
+    {{ _form.render(form, action_url=url_for('properties')) }}
+{% endcall %}
 </div>
+
 <div class="row">
-    <div class="col-md-12">
-        <div class="album text-muted">
-    <div class="container">
-        <div class="row">
-            {% for house in houses | sort(attribute='score', reverse=True) %}
-                <a href="{{url_for('house_detail', _id=house._id)}}">{{ housecard.render(house) }}</a>
-            {% endfor %}
-        </div>
-    </div>
+  {% for re in realestate | sort(attribute='scorestatus', reverse=True) %}
+    <a href="{{url_for('realestate_detail', _id=re._id)}}">{{ housecard.render(re) }}</a>
+  {% endfor %}
 </div>
-    </div>
+
+<div class="row">
+  <nav>
+  <ul class="pager">
+    <li class="pager-prev {% if not previous_page %}disabled{% endif %}"><a href="{{url_for('properties', page=previous_page)}}">Previous</a></li>
+    <li class="pager-next {% if not next_page %}disabled{% endif %}"><a href="{{url_for('properties', page=next_page)}}">Next</a></li>
+  </ul>
+  </nav>
 </div>
+
 
 {% endblock %}

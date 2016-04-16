@@ -6,6 +6,8 @@
             <th>Short</th>
             <th>Name</th>
             <th>Realo name</th>
+            <th>Applies to house</th>
+            <th>Applies to land</th>
             <th></th>
         </thead>
         <tbody>
@@ -19,6 +21,12 @@
                 </td>
                 <td>
                     {{info.realo_name}}
+                </td>
+                <td>
+                    {{info.applies_to_house}}
+                </td>
+                <td>
+                    {{info.applies_to_land}}
                 </td>
                 <td>
                     <a href="{{ url_for('information_detail', _id=info._id) }}">Edit</a>

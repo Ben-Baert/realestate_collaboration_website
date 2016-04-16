@@ -6,7 +6,9 @@
 <html>
     <head>
         <title>Houses</title>
+        <link rel="shortcut icon" href="{{url_for('static', filename='favicon.ico')}}">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-y3tfxAZXuh4HwSYylfB+J125MxIs6mR5FOHamPBG064zB+AFeWH94NdvaCBm8qnd" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.1/css/font-awesome.min.css">
         <style>
         body {
               padding-top: 5rem;
@@ -18,6 +20,14 @@
                 background-color: blue;
                 color: white;
             }
+              .sidebar {
+                left:20px;
+                top:120px;
+                width:50px;  }
+            }
+            .active-status {
+                color:#000099;
+            }
         </style>
         {% block css %}
         {% endblock %}
@@ -25,6 +35,8 @@
     <body>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/js/bootstrap.min.js" integrity="sha384-vZ2WRJMwsjRMW/8U7i6PWi6AlO1L79snBrmgiDpgIWJ82z8eA5lenwvxbMV1PAh7" crossorigin="anonymous"></script>
+    {% block js %}
+    {% endblock %}
     {{ pagedown.include_pagedown() }}
     <script type="text/javascript">
         $(function(){
@@ -33,6 +45,10 @@
             e.preventDefault();
             $('.carousel').carousel( $(this).data() );
         });
+
+        $(function () {
+  $('[data-toggle="tooltip"]').tooltip()
+})
 
     });//END document.ready
     </script>

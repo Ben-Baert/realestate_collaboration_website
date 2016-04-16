@@ -9,11 +9,15 @@ from flask_googlemaps import GoogleMaps
 from flask_pagedown import PageDown
 from flaskext.markdown import Markdown
 from jinja2.utils import Markup
+from .utils import ListConverter
+import operator
 
 
 
 app = Flask(__name__)
 app.config.from_object('config')
+
+app.url_map.converters['list'] = ListConverter
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -139,32 +143,40 @@ def setup_database():
 @app.before_first_request
 def setup_builtin_criteria():
     from .criteria import criteria_list
-    from .models import Criterion, House, CriterionScore
+    from .models import RealestateCriterion, Realestate, RealestateCriterionScore
     extra_criteria = [
-    ('privacy', 'Privacy', False, 10)]
-    for short, name, dealbreaker, importance in (criteria_list + extra_criteria):
+    ('privacy', 'Privacy', False, 10, ['house', 'land'])]
+    for short, name, dealbreaker, importance, applies_to in (criteria_list + extra_criteria):
         try:
-            criterion = Criterion.get(short=short)
+            criterion = RealestateCriterion.get(short=short)
         except DoesNotExist:
-            criterion = Criterion.create(short=short,
+            criterion = RealestateCriterion.create(
+                             short=short,
                              name=name,
                              dealbreaker=dealbreaker,
-                             importance=importance)
-        for house in House.select():
-            CriterionScore.get_or_create(house=house, criterion=criterion)
+                             importance=importance,
+                             applies_to_house='house' in applies_to,
+                             applies_to_land='land' in applies_to,
+                             builtin=True)
+        for realestate in Realestate.select():
+            RealestateCriterionScore.get_or_create(realestate=realestate, criterion=criterion)
 
 @app.before_first_request
 def setup_information():
-    from .models import HouseInformationCategory
+    from .models import RealestateInformationCategory
     INFORMATION = [
-    ("year", "Year", "Bouwjaar"),
-    ("cadastral_income", "Cadastral income", "Kadastraal Inkomen"),
-    ("spatial_planning", "Spatial planning", "Ruimtelijke ordening"),
-    ("epc", "EPC score", "EPC waarde"),
-    ("heating", "Heating", "Type verwarming"),
-    ("building", "Building", "Bebouwing")]
-    for short, name, realo_name in INFORMATION:
-        HouseInformationCategory.get_or_create(_short=short, _name=name, _realo_name=realo_name)
+    ("year", "Year", "Bouwjaar", ['house']),
+    ("cadastral_income", "Cadastral income", "Kadastraal Inkomen", ['house']),
+    ("spatial_planning", "Spatial planning", "Ruimtelijke ordening", ['house']),
+    ("epc", "EPC score", "EPC waarde", ['house']),
+    ("heating", "Heating", "Type verwarming", ['house']),
+    ("building", "Building", "Bebouwing", ['house'])]
+    for short, name, realo_name, applies_to in INFORMATION:
+        RealestateInformationCategory.get_or_create(_short=short, 
+                                               _name=name,
+                                               _realo_name=realo_name,
+                                               applies_to_house='house' in applies_to,
+                                               applies_to_land='land' in applies_to)
 
 @app.template_filter('information')
 def informationfilter(s):
@@ -190,5 +202,10 @@ def price(s):
 @app.template_filter('area')
 def area(s):
     return Markup('{0:,}m<sup>2</sup>'.format(s))
+
+
+@app.template_filter('multisort')
+def sort_multi(L, *operators): 
+    return sorted(L, key=operator.attrgetter(*operators))
 
 from .controllers import *

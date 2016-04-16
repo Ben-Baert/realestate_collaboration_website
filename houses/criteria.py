@@ -10,9 +10,11 @@ from .utils import travel_time
 
 def register():
     registry = []
-    def outer(name, dealbreaker=False, importance=5):
+    def outer(name, dealbreaker=False, importance=5, applies_to=None):
         def registrar(func):
-            registry.append((func.__name__, name, dealbreaker, 10 if dealbreaker else importance))
+            if any(item not in ['house', 'land'] for item in applies_to) or not applies_to:
+                raise ValueError("Criterion must apply to land, house, or both")
+            registry.append((func.__name__, name, dealbreaker, 10 if dealbreaker else importance, applies_to))
             return func
         return registrar
     outer.all = registry
@@ -43,45 +45,51 @@ def score(func):
 
 
 # CRITERIA
-@score_register(name="Time to Brussels by car", dealbreaker=False, importance=3)
+@score_register(name="Time to Brussels by car", dealbreaker=False, importance=3, applies_to=['house', 'land'])
 @score
 def time_by_car_to_brussels(house):
     tt, comment = travel_time(house.address, "VUB, Brussel")
     return 10 - (tt - 3600)//360, comment
 
 
-@score_register(name="Time to Leuven by car", dealbreaker=False, importance=5)
+@score_register(name="Time to Leuven by car", dealbreaker=False, importance=5, applies_to=['house', 'land'])
 @score
 def time_by_car_to_leuven(house):
     tt, comment = travel_time(house.address, "Campus Arenberg, Heverlee")
-    return 10 - (tt - 3600)//180, comment
+    return 10 - (tt - 3600)//300, comment
 
 
-@score_register(name="EPC score", dealbreaker=False, importance=6)
+@score_register(name="EPC score", dealbreaker=False, importance=6, applies_to=['house'])
 @score
 def epc(house):
-    return 10 - (int(house.epc[:3]) - 150) // 60, house.epc
+    return 10 - (int(''.join(char for char in house.epc if char.isdigit())) - 150) // 60, house.epc
 
 
-@score_register(name="Cadastral income under limit", dealbreaker=True)
+@score_register(name="Cadastral income under limit", dealbreaker=True, applies_to=['house'])
 @score
 def cadastral_income(house):
     return int(int(house.cadastral_income.replace(".", "")[1:]) < 745), house.cadastral_income
 
 
-@score_register(name="Price", dealbreaker=False, importance=10)
+@score_register(name="Price", dealbreaker=False, importance=10, applies_to=['house'])
 @score
-def price(house):
+def house_price(house):
     return 10 - (house.price - 100000) // 7000, '€{0:,}'.format(house.price)
 
 
-@score_register(name="Year built", dealbreaker=False, importance=8)
+@score_register(name="Price", dealbreaker=False, importance=10, applies_to=['land'])
+@score
+def land_price(land):
+    return 10 - (land.price - 20000) // 5000, '€{0:,}'.format(land.price)
+
+
+@score_register(name="Year built", dealbreaker=False, importance=8, applies_to=['house'])
 @score
 def year(house):
     return 10 - (2016 - int(house.year)) // 4, house.year
 
 
-@score_register(name="Spatial planning status of land", dealbreaker=True)
+@score_register(name="Spatial planning status of land", dealbreaker=True, applies_to=['house'])
 @score
 def spatial_planning(house):
     if house.spatial_planning:
@@ -89,35 +97,47 @@ def spatial_planning(house):
     return None, None
 
 
-@score_register(name="Heating", dealbreaker=True)
+@score_register(name="Heating", importance=6, dealbreaker=False, applies_to=['house'])
 @score
 def heating(house):
-    if house.heating:
-        return int(house.heating != "Elektrisch"), house.heating
-    return None, None
+    if house.heating == "Elektrisch":
+        return 0
+    return 10
+    #    return int(house.heating != "Elektrisch"), house.heating
+    #return None, None
 
 
-@score_register(name="Building", importance=8)
+@score_register(name="Building", importance=8, applies_to=['house'])
 @score
 def building(house):
+    if house.building is None:
+        return None, None
     if house.building == "Open":
         return 10, house.building
     return 0, house.building
 
 
-@score_register(name="Price per m2", importance=9)
+@score_register(name="Price per m2", importance=9, applies_to=['house'])
 @score
-def price_per_m2(house):
+def house_price_per_m2(house):
     if house.price and house.total_area:
-        price_per_m2 = house.price//house.total_area
+        price_per_m2 = house.price // house.total_area
         score = 10 - price_per_m2 // 15
         return score, '€{0:,}'.format(price_per_m2)
 
+@score_register(name="Price per m2", importance=10, applies_to=['land'])
+@score
+def land_price_per_m2(land):
+    if land.price and land.total_area:
+        price_per_m2 = land.price // land.total_area
+        score = 10 - price_per_m2 // 10
+        return score, '€{0:,}'.format(price_per_m2)
 
-@score_register(name="Total area", importance=8)
+
+@score_register(name="Total area", importance=8, applies_to=['house', 'land'])
 @score
 def total_area(house):
-    return (house.total_area - 300) // 500, house.total_area
+    return (house.total_area - 300) // 300, str(house.total_area) + "m2"
 
 
 criteria_list = score_register.all

@@ -3,7 +3,7 @@
 {% block content %}
     <div class="row">
         <div class="col-md-12">
-            {% call _modal.modal(title="Add new house", launch_text="Add new house", form=True) %}
+            {% call _modal.modal(title="Add new property", launch_text="Add new property", form=True) %}
                 {{ _form.render(form, action_url=url_for('houses')) }}
             {% endcall %}
         </div>   
@@ -12,10 +12,5 @@
         <div class="col-md-12">
             {% include "houses_list.html" %}
         </div>
-        <!--
-        <div class="col-md-9">
-            {% include "house_detail.html" %}
-        </div>
-        -->
     </div>
 {% endblock %}

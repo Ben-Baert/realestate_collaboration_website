@@ -16,7 +16,7 @@
         </thead>
         <tbody>
             {% for notification in notifications %}
-                <tr{% if notification.read %} class="read"{% endif %}>
+                <tr{% if not notification.read %} class="bg-info"{% endif %}>
                     <td>{{notification.category}}</td>
                     <td>{{notification.readable_datetime()}}</td>
                     <td>{{notification.body|safe}}</td>

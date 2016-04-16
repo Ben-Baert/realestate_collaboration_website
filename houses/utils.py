@@ -1,5 +1,16 @@
 import re
 import requests
+from werkzeug.routing import BaseConverter
+
+
+class ListConverter(BaseConverter):
+
+    def to_python(self, value):
+        return value.split(',')
+
+    def to_url(self, values):
+        return ','.join(BaseConverter.to_url(self, value)
+                        for value in values)
 
 
 def google_maps_url(origin, destination):
@@ -8,10 +19,16 @@ def google_maps_url(origin, destination):
 
 def google_maps_request(origin, destination, t):
     url = google_maps_url(origin, destination)
-    r = requests.get(url)
+    try:
+        r = requests.get(url)
+    except requests.exceptions.ConnectionError:
+        return None
     print(r.request.url)
     r = r.json()
-    return r['rows'][0]['elements'][0][t]['value'], r['rows'][0]['elements'][0][t]['text']
+    try:
+        return r['rows'][0]['elements'][0][t]['value'], r['rows'][0]['elements'][0][t]['text']
+    except KeyError:
+        return None
 
 
 def travel_time(origin, destination):
