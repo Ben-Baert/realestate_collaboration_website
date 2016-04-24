@@ -5,12 +5,30 @@ import ast
 from sortedcontainers import SortedSet
 import datetime
 from time import sleep
+from functools import wraps
+from selenium.webdriver.common.keys import Keys
+import logging
 
 
 class HouseSoldError(Exception):
     pass
 
-class RealoSearch:
+
+class DriverBase:
+    def __init__(self):
+        self.driver = webdriver.PhantomJS()
+        self.driver.implicitly_wait(10)
+        self.driver.set_window_size(1280, 800)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.driver.close()
+        self.driver.quit()
+
+
+class RealoSearch(DriverBase):
     def __init__(self,
                  include_houses=True,
                  include_land=True,
@@ -19,7 +37,9 @@ class RealoSearch:
                  min_landsize=300,
                  min_yearbuilt=1970,
                  max_age=7):
-        min_date = datetime.datetime.now() - datetime.timedelta(days = max_age)
+        super().__init__()
+        min_date = (datetime.datetime.now() -
+                    datetime.timedelta(days=max_age))
         min_date = min_date.strftime("%Y-%m-%d")
         search = []
         if include_houses:
@@ -27,134 +47,157 @@ class RealoSearch:
         if include_land:
             search.append("grond")
         search = ','.join(search)
-        url = "https://www.realo.be/nl/search/{}/te-koop?".format(search)
-        url += "priceMin={}&priceMax={}&landsizeMin={}&yearbuiltMin={}&firstListing={}".format(
-                                                                               min_price,
-                                                                               max_price,
-                                                                               min_landsize,
-                                                                               min_yearbuilt,
-                                                                               min_date)
-        print(url)
+        url = "https://www.realo.be/nl/search/{}/te-koop".format(search)
+        url += "?priceMin={}".format(min_price)
+        url += "&priceMax={}".format(max_price)
+        url += "&landsizeMin={}".format(min_landsize)
+        url += "&yearbuiltMin={}".format(min_yearbuilt)
+        url += "&firstListing={}".format(min_date)
         self.url = url
-        self.driver = webdriver.Firefox()
-        self.driver.implicitly_wait(10)
+        logging.info("Scraping " + self.url + " for houses links.")
         self.driver.get(self.url)
         self.driver.find_element_by_css_selector("li.view-switch-item.list").click()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.driver.quit()
-
-
 
     def houses_urls(self):
         for link in self.driver.find_elements_by_css_selector(
             """
             li.component-estate-list-grid-item  > div > div:nth-child(2) > a.link
             """):
+            logging.debug("Found " + link.get_attribute("href"))
             yield link.get_attribute("href")
         try:
             self.next_page()
         except StopIteration:
             return
         else:
+            print("going to the next one")
             yield from self.houses_urls()
 
     def next_page(self):
         try:
             self.driver.find_element_by_css_selector(
-            """
-            .button-next
-            """).click()
+                """
+                .button-next
+                """).click()
+            sleep(5)
         except NoSuchElementException:
             raise StopIteration
 
 
-
-class Realo:
+class Realo(DriverBase):
     def __init__(self, url):
         if "realo" not in url:
             raise ValueError("Url must be a realo url")
+        super().__init__()
         self.url = url
-        self.driver = webdriver.Firefox()
-        self.driver.implicitly_wait(10)
         self.driver.get(self.url)
+        self.picture_count = self.number_of_pictures()
 
-    def __enter__(self):
-        return self
+    def carousel_method(func):
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+            self.driver.get_screenshot_as_file("beforefirstclick.png")
+            self.click_on_carousel()
+            self.driver.get_screenshot_as_file("afterfirstclick.png")
+            result = func(self, *args, **kwargs)
+            self.driver.get_screenshot_as_file("beforesecondclick.png")
+            self.click_on_carousel()
+            self.driver.get_screenshot_as_file("aftersecondclick.png")
+            return result
+        return inner
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.driver.quit()
+    def click_on_carousel(self):
+        elem = self.driver.find_element_by_css_selector(
+            """
+            #mediaViewer > ul.navigation.hidden-xs > li.active
+            """)
+        elem.click()
+        sleep(2)
 
     def seller(self):
-        return self.driver.find_element_by_css_selector(
-            """
-            a.font-medium:nth-child(1)
-            """).text
+        try:
+            return self.driver.find_element_by_css_selector(
+                        """
+                        a.font-medium:nth-child(1)
+                        """).text
+        except NoSuchElementException:
+            return None
 
     def realestate_type(self):
-        d = self.driver.find_element_by_css_selector(".property-type").text.lower()
+        try:
+            d = (self.driver
+                 .find_element_by_css_selector(".property-type")
+                 .text
+                 .lower())
+        except NoSuchElementException:
+            return None
         if "grond" in d:
             return "land"
         return "house"
 
     def added_on(self):
-        date_string = self.driver.find_element_by_css_selector(
-        """
-        .no-bottom-border
-        > td:nth-child(1)
-        > span:nth-child(1)
-        """).text
+        try:
+            date_string = self.driver.find_element_by_css_selector(
+                """
+                .no-bottom-border
+                > td:nth-child(1)
+                > span:nth-child(1)
+                """).text
+        except:
+            print("No added date on " + self.url)
+            return None
         try:
             return datetime.datetime.strptime(date_string, "%d/%m/%y")
         except:
             return None
 
     def address(self):
-        return (self
-                .driver
-                .find_element_by_css_selector(
-                 """
-                 #container
-                 > div
-                 > div:nth-child(1)
-                 > div
-                 > div.module.module-description
-                 > header
-                 > div
-                 > h2
-                 > span
-                 """).text)
+        try:
+            return (self
+                    .driver
+                    .find_element_by_css_selector(
+                         """
+                         #container
+                         > div
+                         > div:nth-child(1)
+                         > div
+                         > div.module.module-description
+                         > header
+                         > div
+                         > h2
+                         > span
+                         """).text)
+        except:
+            print("No address on " + self.url)
 
     def lat_lng(self):
-        return [float(x) for x in ast.literal_eval(self
-                                                   .driver
-                                                   .find_element_by_css_selector(
-                                                        """
-                                                        #mediaViewer
-                                                        """)
-                                                    .get_attribute('data-latlng'))]
+        return tuple(float(x) for x in ast.literal_eval(
+                        self
+                        .driver
+                        .find_element_by_css_selector(
+                            """
+                            #mediaViewer
+                            """)
+                        .get_attribute('data-latlng')))
 
     def price(self):
-        price = (self
-                 .driver
-                 .find_element_by_css_selector(
-                    """
-                    span.row:nth-child(1)
-                    """)
-                 .text[2:]
-                 .replace(".", ""))
         try:
+            price = (self
+                     .driver
+                     .find_element_by_css_selector(
+                        """
+                        span.row:nth-child(1)
+                        """)
+                     .text[2:]
+                     .replace(".", "")
+                     .replace("+", ""))
             return int(price)
-        except ValueError:
-            if price == "Huis niet te koop":
-                raise HouseSoldError(
+        except (ValueError, TypeError, NoSuchElementException):
+            raise HouseSoldError(
                     """
-                    It looks like the house is no longer available.
+                    It looks like the house at {} is no longer available.
                     Best to check manually though!
-                    """)
+                    """.format(self.url))
 
     def area(self):
         inhabitable = None
@@ -202,13 +245,13 @@ class Realo:
             features = (self
                         .driver
                         .find_element_by_css_selector(
-                        """
-                        .tags
-                        """))
+                            """
+                            .tags
+                            """))
         except NoSuchElementException:
-            return [] 
-        return (feature.text.title() for feature in features.find_elements_by_css_selector("li"))
-
+            return []
+        return (feature.text.title()
+                for feature in features.find_elements_by_css_selector("li"))
 
     def description(self):
         try:
@@ -220,40 +263,40 @@ class Realo:
         except NoSuchElementException:
             return None
 
+    @carousel_method
     def thumbnail_pictures(self):
-        self.driver.find_element_by_css_selector(
-            """
-            #mediaViewer
-            > ul.views
-            > li.show
-            > div
-            > div
-            """).click()
-        images = self.driver.find_elements_by_css_selector(
+        images = SortedSet()
+        images_elements = self.driver.find_elements_by_css_selector(
             """
             div.pswp__carousel-item
             > a
             > img
             """)
-        for image in images:
-            yield image.get_attribute('src')
+        print(len(images_elements))
+        for image in images_elements:
+            url = image.get_attribute('src')
+            print(url)
+            images.add(url)
+        return images
 
-        self.driver.find_element_by_css_selector("""
-            #mediaViewer
-            > ul.views
-            > li.show
-            > div
-            > div
-            """).click()
+    def number_of_pictures(self):
+        try:
+            text = self.driver.find_element_by_css_selector(".numbers").text
+            return int(re.search(r"(\d+)$", text).group(1))
+        except:
+            print("No pictures on " + self.url)
+            return 0
 
+
+    @carousel_method
     def main_pictures(self):
         images = SortedSet()
-        self.driver.find_element_by_css_selector("#mediaViewer > ul.views > li.show > div > div").click()
-        count = int(re.match("[0-9]+ / ([0-9]+)", self.driver.find_element_by_css_selector(".pswp__carousel-counter").text).group(1))
-        for _ in range(count - 1):
+        for _ in range(self.picture_count):# - 1):
             for img in self.driver.find_elements_by_css_selector("img.pswp__img"):
                 url = img.get_attribute("src")
                 images.add(url)
-            self.driver.find_element_by_css_selector("button.pswp__button:nth-child(5)").click()
-        self.driver.find_element_by_css_selector("#mediaViewer > ul.views > li.show > div > div").click()
+            elem = self.driver.find_element_by_css_selector(".pswp__container")
+            elem.send_keys(Keys.ARROW_RIGHT)
+            sleep(0.5)
+        print(str(len(images)) + " in main pictures")
         return images

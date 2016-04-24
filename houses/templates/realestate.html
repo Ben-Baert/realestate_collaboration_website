@@ -1,0 +1,244 @@
+{% import "_form.html" as _form %}
+{% import "_modal.html" as _modal %}
+{% import "_carousel.html" as _carousel %}
+
+{% block css %}
+<style>
+    .carousel-item > img {
+        max-height:400px;
+        max-width: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-7"><a href="{{realestate.realo_url}}"><h5>{{ realestate.address }}</h5></a><small>{{realestate.realestate_type | title}} added on {{ realestate.added_on | date }}</small></div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Prijs
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ realestate.price | price }}</b>
+                    </div>
+                </div>
+            </div>
+            {% if realestate.inhabitable_area %}
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Bewoonbaar
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ realestate.inhabitable_area | area }}</b>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Totaal
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ realestate.total_area | area }}</b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <div class="row">
+                    <div class="col-md-12">
+                        Score
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <b>{{ realestate.score }}{% if not realestate.score %}/({{realestate._score}}){% endif %}%</b>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-1">
+            {% if appointment_form and not realestate.appointments %}
+                {% call _modal.modal(title="Make appointment", launch_text="+", form=True, show=show_modal) %}
+                    {{ _form.render(appointment_form, action_url=url_for('realestate_detail', _id=realestate._id)) }}
+                {% endcall %}
+            {% else %}
+                {% for appointment in realestate.appointments %}
+                    <span id="appointment-{{appointment._id}}">Afspraak op: {{appointment.dt}}</span>
+                {% endfor %}
+            {% endif %}
+            </div>      
+        </div>
+        <div class="row">
+            <div class="col-md-7">
+               {{ _carousel.render(realestate.main_pictures, _id=realestate._id, indicators=True) }}
+            </div>
+            <div class="col-md-5">
+                {{ googlemap("location", lat=realestate.lat, lng=realestate.lng, markers=[(realestate.lat, realestate.lng)], style="height:400px;width:100%;margin:0;") }}
+            </div>
+        </div>
+        {% if realestate.description %}
+                <h4>Description</h4>
+                <p>{{ realestate.description }}</p>
+        {% endif %}
+
+        <h3>Information
+        {% if information_form %}
+         <small>(
+        {% call _modal.modal(title="Edit information", launch_text="Edit", form=True, show=show_modal, _id="information", link_only=True) %}
+            {{ _form.render(information_form, action_url=url_for('realestate_detail', _id=realestate._id)) }}
+        {% endcall %}
+        )</small>
+        {% endif %}
+        </h3>
+        {% for row in realestate.information | batch(3) %}
+        <div class="row">
+            {% for information in row %}
+                <div class="col-md-4">
+                    <div class="row">
+                        <div class="col-md-12">
+                            {{ information.name }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <b>{{ information.value | information }}</b>
+                        </div>
+                    </div>    
+                </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        {% if realestate.features %}
+        <h3>Features</h3>
+        <ul class="list-inline">
+            {% for feature in realestate.features %}
+                <li class="list-inline-item"><span class="label label-default">{{ feature.feature.name }}</span></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <h3>Aspects
+        {% if criterionscore_form %}
+         <small>(
+        {% call _modal.modal(title="Edit criteria scores", launch_text="Edit", form=True, show=show_modal, _id="criteria", link_only=True) %}
+                    If uncertain, type "?"
+                    {{ _form.render(criterionscore_form, action_url=url_for('realestate_detail', _id=realestate._id)) }}
+                {% endcall %}
+                )</small>
+        {% endif %}
+                </h3>
+        <div class="row">
+            <div class="col-md-4">
+                <h5>Positive</h5>
+                <ul>
+                    {% for aspect in realestate.positive_aspects %}
+                        <li>{{ aspect.positive_description }} ({{ aspect.safecomment }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h5>Negative</h5>
+                <ul>
+                    {% for aspect in realestate.negative_aspects %}
+                        <li>{{ aspect.negative_description }} ({{ aspect.safecomment }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h5>Actual problems</h5>
+                <ul>
+                    {% for aspect in realestate.actual_problems %}
+
+                        <li>{{ aspect.negative_description }} ({{ aspect.safecomment }})</li>
+                    
+                    {% endfor %}
+                </ul>
+                <h5>Potential problems</h5>
+                <ul>
+                    {% for aspect in realestate.potential_problems %}
+
+                        <li>{{ aspect.unknown_description }}</li>
+                    
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {#
+        <h3>Criteria</h3>
+            {% for row in realestate.criteria | sort(attribute='importance', reverse=True) | batch(3) %}
+            <div class="row">
+                {% for criterion in row %}
+                    <div class="col-md-4">
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ criterion.name }} ({{ criterion.importance }})
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                {% if criterion.score_unknown %}
+                                Icon ?
+                                {% elif criterion.dealbreaker_failed %}
+                                Icon X
+                                {% elif criterion.dealbreaker_passed %}
+                                Icon OK
+                                {% else %}
+                                <b>{{ criterion.safescore }}</b>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        #}
+
+        {% if message_form %}
+        <h3>Messages</h3>
+                    {% for message in realestate.messages %}
+                        <div class="row message" id="message-{{message._id}}">
+                            <div class="col-md-2">
+                                <b>{{ message.author.username }}</b>
+                            </div>
+                            <div class="col-md-2">
+                                {{ message.readable_datetime() }}
+                            </div>
+                            <div class="col-md-5">
+                                {{ message.body | markdown }}
+                            </div>
+                            {% if message.author == current_user._id or current_user.is_admin %}
+                            <div class="col-md-1">
+                                <a href="/message/{{message._id}}/">Edit</a>
+                            </div>
+                            <div class="col-md-1">
+                                Delete
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                        {% call _form.render(message_form, action_url=url_for('realestate_detail', _id=realestate._id)) %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ message_form.body(only_input=True, class_="form-control") }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ message_form.body(only_preview=True) }}
+                                </div>
+                            </div>  
+                        {% endcall %}
+        {% endif %}
+                            </div>
+                        
+                        </div>
+    </div>
+</div>
+{% endblock %}

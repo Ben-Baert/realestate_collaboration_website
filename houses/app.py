@@ -111,7 +111,7 @@ celery.Task = RequestContextTask
 @login_manager.user_loader
 def load_user(_id):
     return User.get(_id=_id)
-
+"""
 
 from .models import BaseModel, database, UserNotAvailableError
 # This hook ensures that a connection is opened to handle any queries
@@ -146,7 +146,7 @@ def setup_builtin_criteria():
     from .models import RealestateCriterion, Realestate, RealestateCriterionScore
     extra_criteria = [
     ('privacy', 'Privacy', False, 10, ['house', 'land'])]
-    for short, name, dealbreaker, importance, applies_to in (criteria_list + extra_criteria):
+    for short, name, dealbreaker, importance, applies_to in criteria_list:
         try:
             criterion = RealestateCriterion.get(short=short)
         except DoesNotExist:
@@ -177,7 +177,7 @@ def setup_information():
                                                _realo_name=realo_name,
                                                applies_to_house='house' in applies_to,
                                                applies_to_land='land' in applies_to)
-
+"""
 @app.template_filter('information')
 def informationfilter(s):
     return s or "?"
@@ -207,5 +207,12 @@ def area(s):
 @app.template_filter('multisort')
 def sort_multi(L, *operators): 
     return sorted(L, key=operator.attrgetter(*operators))
+
+@app.template_filter('date')
+def date(d):
+    try:
+        return d.strftime("%d/%m/%Y")
+    except AttributeError:
+        return "?"
 
 from .controllers import *

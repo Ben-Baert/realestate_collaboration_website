@@ -34,8 +34,10 @@ from .models import (User,
                      RealestateCriterionScore,
                      RealestateInformationCategory,
                      UserRealestateReview,
-                     fn)
-from .celery_tasks import add_realo_realestate, generate_feed
+                     fn,
+                     cache)
+from .celery_tasks import add_realo_realestate, generate_feed, prepare_caches
+from datetime import datetime
 
 
 def get_object_or_404(query_or_model, *query):
@@ -50,7 +52,7 @@ def get_object_or_404(query_or_model, *query):
 def admin_required(func):
     @wraps(func)
     def decorated_view(*args, **kwargs):
-        if not current_user.is_admin:
+        if not current_user.is_authenticated or not current_user.is_admin:
             return abort(403)
         return func(*args, **kwargs)
     return decorated_view
@@ -144,12 +146,12 @@ def user(_id):
     return render_template("baseform.html", form=form)
 
 
-@app.route('/generate_feed/')
+@app.route('/generate_feed/<int:max_age>/')
+@app.route('/generate_feed/', defaults={'max_age': 2})
 @admin_required
-def feed():
-
-    generate_feed()
-    return "generating"
+def feed(max_age):
+    generate_feed(max_age=max_age)
+    return "Generating..."
 
 
 @app.route('/information/', methods=["GET", "POST"])
@@ -182,26 +184,41 @@ def settings():
         return redirect(url_for('houses'))
     return render_template('baseform.html', form=form)
 
+@app.route('/prepare_queue/')
+@admin_required
+def prepare_queue():
+    prepare_caches()
+    return "preparing caches..."
 
 @app.route('/queue/')
 def queue():
     try:
-        realestate = sorted(Realestate.full_queue(current_user), key=lambda x: (-x.score, -x._score))[0]
+        realestate_id = current_user.cached_queue[0]
+        to_go = len(current_user.cached_queue)
+        realestate = Realestate.get(Realestate._id == realestate_id)
         if realestate.dealbreakers:
-            flash('; '.join(dealbreaker.negative_description + (" (" + dealbreaker.safecomment + ")" if dealbreaker.safecomment else "")
-                        for dealbreaker in realestate.dealbreakers), "warning")
-    except IndexError:
-        flash("All properties have been reviewed. You have been redirected to the main properties page", "info")
+            flash('; '.join(dealbreaker.negative_description +
+                            (" (" + dealbreaker.safecomment + ")"
+                                if dealbreaker.safecomment else "")
+                            for dealbreaker in realestate.dealbreakers),
+                  "warning")
+    except (IndexError, DoesNotExist):
+        flash(
+                """
+                All properties have been reviewed.
+                You have been redirected to the main properties page
+                """,
+                "info")
         return redirect(url_for('properties'))
-    return render_template('queue.html', realestate=realestate)
+    return render_template('queue.html',
+                           realestate=realestate,
+                           to_go=to_go)
 
 
 @app.route('/review/')
 def review():
     _id, status = int(request.args.get('_id')), request.args.get('status')
-    user_review, _ = UserRealestateReview.get_or_create(realestate=_id, user=current_user._id)
-    user_review.status = status
-    user_review.save()
+    current_user.review_property(_id, status)
     return redirect(url_for('queue'))
 
 
@@ -212,7 +229,7 @@ def properties(categories):
     page_nr = int(request.args.get('page') or 1)
     realestate = Realestate.not_rejected().where(Realestate.realestate_type << categories)
     total_nr_of_pages = realestate.count() // 12 + 1
-    current_realestate = realestate.paginate(page_nr, 12)
+    current_realestate = realestate#.paginate(page_nr, 12)
     previous_page = page_nr - 1 if page_nr > 1 else None
     next_page = page_nr + 1 if page_nr < total_nr_of_pages else None
 
@@ -393,7 +410,7 @@ def message(_id):
 
     if message_form.validate_on_submit():
         message_form.edit_object(message)
-        return redirect(url_for('realestate_detail', _id=message.house._id))
+        return redirect(url_for('realestate_detail', _id=message.realestate._id))
 
     return render_template("baseform.html",
                             form=message_form)

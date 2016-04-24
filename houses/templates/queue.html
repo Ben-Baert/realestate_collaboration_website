@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block css %}
+<style>
+    .active {
+        color:#000099 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if to_go %}
+  Still to review: {{to_go}}
+{% endif %}
+<ul class="nav nav-stacked navbar-fixed-bottom sidebar">
+  <li>
+    <a href="{{url_for('review', _id=realestate._id, status='accepted')}}">
+      <i class="fa fa-thumbs-up fa-3x {% if realestate.user_status == 'accepted' %}active{% endif %}" aria-hidden="true"></i>
+    </a>
+  </li>
+  <li>
+    <a href="{{url_for('review', _id=realestate._id, status='unsure')}}">
+      <i class="fa fa-question-circle fa-3x {% if realestate.user_status == 'unsure' %}active{% endif %}" aria-hidden="true"></i>
+    </a>
+  </li>
+  <li>
+    <a href="{{url_for('review', _id=realestate._id, status='rejected')}}">
+      <i class="fa fa-thumbs-down fa-3x {% if realestate.user_status == 'rejected' %}active{% endif %}" aria-hidden="true"></i>
+    </a>
+  </li>
+</ul>
+
+<div class="row">
+    
+    <div class="col-md-12">
+        {% include "realestate.html" %}
+    </div>    
+</div>
+{% endblock %}

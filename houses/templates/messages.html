@@ -2,7 +2,7 @@
   <!-- Categories: success (green), info (blue), warning (yellow), danger (red) -->
   {% if messages %}
     {% for category, message in messages %}
-      <div class="alert alert-{{ category }} alert-dismissible" role="alert">
+      <div class="alert alert-{{ category if not category == 'message' else 'info' }} alert-dismissible" role="alert">
       <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
       <!-- <strong>Title</strong> --> 
       {% if category == 'warning' %}<i class="fa fa-exclamation-triangle" aria-hidden="true"></i>{% endif %}

@@ -2,24 +2,37 @@ from peewee import IntegrityError
 from .app import celery
 from .models import (Realestate,
                      RealestateInformationCategory,
-                     RealestateInformation, 
+                     RealestateInformation,
                      RealestateCriterion,
                      RealestateCriterionScore,
                      Feature,
                      RealestateFeature,
-                     Notification,
-                     database)
+                     User,
+                     database,
+                     cache)
 from houses.scrapers.realo import Realo, RealoSearch
 
 
-
 @celery.task
-def generate_feed():
-    urls = (realestate.url for realestate in Realestate.select())
-    with RealoSearch() as search:
+def generate_feed(*args, **kwargs):
+    urls = [realestate.realo_url for realestate in Realestate.select()]
+    with RealoSearch(*args, **kwargs) as search:
         for item in search.houses_urls():
             if item not in urls:
                 add_realo_realestate.delay(item)
+    prepare_caches.delay()
+
+
+@celery.task
+@database.atomic()
+def prepare_caches():
+    for user in User.select():
+        cached_queue = sorted(Realestate.full_queue(user),
+                              key=lambda x: (-x.score, -x._score))
+        for i in range(len(user.cached_queue)):
+            user.cached_queue.pop()
+        print(user.cached_queue)
+        user.cached_queue.extend([x._id for x in cached_queue])
 
 
 @celery.task
@@ -45,6 +58,7 @@ def add_realo_realestate(url):
                     thumbnail_pictures=realo_realestate.thumbnail_pictures(),
                     main_pictures=realo_realestate.main_pictures(),
                     )
+            print(realestate.realo_url + " added.")
         except IntegrityError:
             return
 
@@ -58,10 +72,10 @@ def add_realo_realestate(url):
                 value=information[1])
 
         for criterion in RealestateCriterion.select():
-            RealestateCriterionScore.create(criterion=criterion, realestate=realestate)
+            RealestateCriterionScore.create(criterion=criterion,
+                                            realestate=realestate)
 
         for feature in realo_realestate.features():
             feature, _ = Feature.get_or_create(name=feature)
             RealestateFeature.create(feature=feature, realestate=realestate)
-
-        #Notification.create(realestate.realestate_type, realestate)
+    print("Ended!")

@@ -207,7 +207,7 @@ class MessageForm(BaseForm):
     body = PageDownField()
 
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
-AppointmentForm = generate_form(Appointment, exclude=["house"])
+AppointmentForm = generate_form(Appointment, exclude=["realestate"])
 AppointmentsForm = generate_form(Appointment)
 
 

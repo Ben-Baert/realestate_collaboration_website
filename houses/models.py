@@ -18,12 +18,10 @@ from peewee import (CharField,
                     DoesNotExist)
 from playhouse.hybrid import hybrid_method
 from playhouse.hybrid import hybrid_property
-from peewee import Expression
-from peewee import OP
-from .app import bcrypt, celery
+from .app import bcrypt
 from .utils import to_snakecase
 import houses.criteria
-import functools
+from walrus import Database
 
 """
 Note on terminology:
@@ -33,6 +31,8 @@ Note on terminology:
 """
 
 database = SqliteExtDatabase('houses.db')
+
+cache = Database()
 
 
 class UserNotAvailableError(Exception):
@@ -128,6 +128,19 @@ class User(BaseModel, UserMixin):
     def is_active(self):
         return self.active
 
+    @property
+    def cached_queue(self):
+        return cache.List("realestate:" + str(self._id) + ":queue")
+
+    def review_property(self, realestate_id, status):
+        review, _ = UserRealestateReview.get_or_create(user=self._id,
+                                                       realestate=realestate_id)
+        review.status = status
+        review.save()
+        #if self.cached_queue[0] == realestate_id:
+        #self.cached_queue.popleft()
+        #self.cached_queue.remove(house_id)
+
 
 class RealestateCriterion(BaseModel):
     short = CharField()
@@ -211,6 +224,7 @@ CONTROVERSIAL = Status(3, "Controversial")
 PENDING = Status(2, "Pending")
 REJECTED = Status(1, "Rejected")
 
+
 @database.func()
 def rank_status(s):
     print(s)
@@ -290,23 +304,11 @@ class Realestate(BaseModel):
 
     @classmethod
     def full_queue(cls, user):
-        return cls.unreviewed_by(user).order_by(-cls.score)
+        return cls.unreviewed_by(user)
 
     @classmethod
     def next_queue_item(cls, user):
         return cls.full_queue(user).get()
-
-    def accept(self, user):
-        review, _ = UserRealestateReview.create_or_get(user=user._id,
-                                                       realestate=self._id)
-        review.status = 'accepted'
-        review.save()
-
-    def reject(self, user):
-        review, _ = UserRealestateReview.create_or_get(user=user._id,
-                                                       realestate=self._id)
-        review.status = 'rejected'
-        review.save()
 
     @property
     def status(self):
@@ -514,6 +516,9 @@ class UserRealestateReview(BaseModel):
     status = CharField(choices=[('rejected', 'Rejected'),
                                 ('unsure', 'Unsure'),
                                 ('accepted', 'Accepted')], null=True)
+
+    #class Meta:
+    #    primary_key = CompositeKey('user', 'realestate')
 
 
 @database.func()

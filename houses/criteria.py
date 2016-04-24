@@ -1,4 +1,5 @@
 import functools
+import re
 from .utils import travel_time
 
 # GENERIC HELPERS
@@ -62,7 +63,8 @@ def time_by_car_to_leuven(house):
 @score_register(name="EPC score", dealbreaker=False, importance=6, applies_to=['house'])
 @score
 def epc(house):
-    return 10 - (int(''.join(char for char in house.epc if char.isdigit())) - 150) // 60, house.epc
+    score = int(re.search("[0-9]+", house.epc).group(0))
+    return 10 - (score - 150) // 60, house.epc
 
 
 @score_register(name="Cadastral income under limit", dealbreaker=True, applies_to=['house'])
@@ -92,25 +94,25 @@ def year(house):
 @score_register(name="Spatial planning status of land", dealbreaker=True, applies_to=['house'])
 @score
 def spatial_planning(house):
-    if house.spatial_planning:
-        return int(house.spatial_planning != "Recreatiegebied"), house.spatial_planning
-    return None, None
+    if not house.spatial_planning:
+        return None, None
+    return int(house.spatial_planning != "Recreatiegebied"), house.spatial_planning
 
 
 @score_register(name="Heating", importance=6, dealbreaker=False, applies_to=['house'])
 @score
 def heating(house):
+    if not house.heating:
+        return None, None
     if house.heating == "Elektrisch":
-        return 0
-    return 10
-    #    return int(house.heating != "Elektrisch"), house.heating
-    #return None, None
+        return 0, house.heating
+    return 10, house.heating
 
 
 @score_register(name="Building", importance=8, applies_to=['house'])
 @score
 def building(house):
-    if house.building is None:
+    if not house.building:
         return None, None
     if house.building == "Open":
         return 10, house.building
