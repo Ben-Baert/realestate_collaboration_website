@@ -1,4 +1,4 @@
-SECRET_KEY = 'really_secret'
+SECRET_KEY = 'really_secret_t'
 WTF_CSRF_SECRET_KEY = 'really_secret_too'
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'

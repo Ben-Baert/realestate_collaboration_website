@@ -3,3 +3,4 @@ dump.rdb
 ghostdriver.log
 *.pyc
 houses.db
+*.DS_Store

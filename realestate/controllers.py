@@ -12,7 +12,7 @@ from flask.ext.login import (login_required,
                              current_user,
                              logout_user,
                              current_app)
-from .app import app
+from realestate import app
 from .forms import (LoginForm,
                     RealestateForm,
                     SettingsForm,
@@ -36,7 +36,7 @@ from .models import (User,
                      UserRealestateReview,
                      fn,
                      cache)
-from .celery_tasks import add_realo_realestate, generate_feed, prepare_caches
+from .celery import add_realo_realestate, generate_feed, prepare_caches
 from datetime import datetime
 
 

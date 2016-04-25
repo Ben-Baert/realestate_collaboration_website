@@ -18,9 +18,9 @@ from peewee import (CharField,
                     DoesNotExist)
 from playhouse.hybrid import hybrid_method
 from playhouse.hybrid import hybrid_property
-from .app import bcrypt
+from realestate import bcrypt
 from .utils import to_snakecase
-import houses.criteria
+import realestate.criteria
 from walrus import Database
 
 """
@@ -659,9 +659,10 @@ class RealestateCriterionScore(BaseModel):
         if not self.builtin:
             return
         try:
-            self.defaultscore, self.defaultcomment = getattr(houses.criteria, self.short)(self.realestate)
+            self.defaultscore, self.defaultcomment = getattr(realestate.criteria, self.short)(self.realestate)
             self.save()
         except AttributeError as e:
+            raise
             print(e)
             return
 

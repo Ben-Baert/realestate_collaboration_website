@@ -1,3 +1,3 @@
-from houses.app import app
+from realestate import app
 
 app.run(debug=True)
