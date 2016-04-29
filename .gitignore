@@ -1,6 +1,6 @@
 __pycache__
-dump.rdb
-ghostdriver.log
+*.rdb
+*.log
 *.pyc
-houses.db
+*.db
 *.DS_Store
