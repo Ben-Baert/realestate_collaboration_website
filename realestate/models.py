@@ -617,7 +617,6 @@ def after_save(sender, instance, created):
                      .select()
                      .where(RealestateCriterionScore.realestate == instance.realestate))
     for item in to_be_updated:
-        print("updating" + str(item))
         item.get_defaults()
 
 post_save.connect(after_save, sender=RealestateInformation)
@@ -676,9 +675,7 @@ class RealestateCriterionScore(BaseModel):
             self.defaultscore, self.defaultcomment = getattr(realestate.criteria_funcs, self.short)(self.realestate)
             self.save()
         except AttributeError as e:
-            raise
-            print(e)
-            return
+            return None
 
     def __repr__(self):
         return "{} score for property in {}: {}".format(self.criterion.name,

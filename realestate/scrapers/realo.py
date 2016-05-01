@@ -10,6 +10,9 @@ from selenium.webdriver.common.keys import Keys
 import twiggy
 
 
+twiggy.quick_setup(file="logs/realo_scraper.log")
+
+
 class HouseSoldError(Exception):
     pass
 
@@ -37,8 +40,8 @@ class RealoSearch(DriverBase):
                  min_landsize=300,
                  min_yearbuilt=1970,
                  max_age=7):
-        super().__init__()
         self.log = twiggy.log.name("RealoSearch")
+        super().__init__()
         min_date = (datetime.datetime.now() -
                     datetime.timedelta(days=max_age))
         min_date = min_date.strftime("%Y-%m-%d")
@@ -64,14 +67,14 @@ class RealoSearch(DriverBase):
             """
             li.component-estate-list-grid-item  > div > div:nth-child(2) > a.link
             """):
-            self.log.debug("Found " + link.get_attribute("href"))
+            self.log.debug("Found realestate url: " + link.get_attribute("href"))
             yield link.get_attribute("href")
         try:
             self.next_page()
         except StopIteration:
             return
         else:
-            print("going to the next one")
+            self.log.debug("Going to the next list item in houses_urls functions")
             yield from self.houses_urls()
 
     def next_page(self):
@@ -87,12 +90,12 @@ class RealoSearch(DriverBase):
 
 class Realo(DriverBase):
     def __init__(self, url):
+        self.log = twiggy.log.name("Realo").fields(url=url)
         if "realo" not in url:
-            log.error("A non-realo url was entered: {}".format(url))
+            self.log.error("A non-realo url was entered: {}".format(url))
             raise ValueError("Url must be a realo url")
         super().__init__()
         self.url = url
-        self.log = twiggy.log.name("Realo").fields(url=url)
         self.driver.get(self.url)
         self.picture_count = self.number_of_pictures()
 
