@@ -1,6 +1,7 @@
 from peewee import IntegrityError
 from celery import Celery, Task
 from realestate import app
+from flask import has_request_context, request, make_response
 from .models import (Realestate,
                      RealestateInformationCategory,
                      RealestateInformation,
@@ -105,7 +106,7 @@ def prepare_caches():
                               key=lambda x: (-x.score, -x._score))
         for i in range(len(user.cached_queue)):
             user.cached_queue.pop()
-        print(user.cached_queue)
+        #print(user.cached_queue)
         user.cached_queue.extend([x._id for x in cached_queue])
 
 

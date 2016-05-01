@@ -210,15 +210,23 @@ def queue():
                 """,
                 "info")
         return redirect(url_for('properties'))
+    previous = request.args.get('previous', None)
     return render_template('queue.html',
                            realestate=realestate,
-                           to_go=to_go)
+                           to_go=to_go,
+                           previous=previous)
 
 
 @app.route('/review/')
 def review():
     _id, status = int(request.args.get('_id')), request.args.get('status')
     current_user.review_property(_id, status)
+    return redirect(url_for('queue', previous=_id))
+
+
+@app.route('/undo_review/<int:_id>/')
+def undo_review(_id):
+    current_user.undo_review(_id)
     return redirect(url_for('queue'))
 
 

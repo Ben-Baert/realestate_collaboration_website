@@ -15,7 +15,13 @@
 <div class="row">
     <div class="col-md-12">
         <div class="row">
-            <div class="col-md-7"><a href="{{realestate.realo_url}}"><h5>{{ realestate.address }}</h5></a><small>{{realestate.realestate_type | title}} added on {{ realestate.added_on | date }}</small></div>
+            <div class="col-md-7">
+                <a href="{{realestate.realo_url}}">
+                    <h5>{{ realestate.address }}</h5>
+                </a>
+                <a href="">Edit address</a>
+                <small>{{realestate.realestate_type | title}} added on {{ realestate.added_on | date }}</small>
+            </div>
             <div class="col-md-1">
                 <div class="row">
                     <div class="col-md-12">
@@ -68,9 +74,10 @@
             </div>
             <div class="col-md-1">
             {% if appointment_form and not realestate.appointments %}
-                {% call _modal.modal(title="Make appointment", launch_text="+", form=True, show=show_modal) %}
+                {% call _modal.modal(title="Make appointment", launch_text="+", form=True, show=show_modal, disabled=(False if realestate.has_full_address else True)) %}
                     {{ _form.render(appointment_form, action_url=url_for('realestate_detail', _id=realestate._id)) }}
                 {% endcall %}
+                
             {% else %}
                 {% for appointment in realestate.appointments %}
                     <span id="appointment-{{appointment._id}}">Afspraak op: {{appointment.dt}}</span>

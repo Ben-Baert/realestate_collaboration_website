@@ -29,6 +29,13 @@
       <i class="fa fa-thumbs-down fa-3x {% if realestate.user_status == 'rejected' %}active{% endif %}" aria-hidden="true"></i>
     </a>
   </li>
+  {% if previous %}
+  <li>
+    <a href="{{url_for('undo_review', _id=previous)}}">
+      <i class="fa fa-undo fa-3x" aria-hidden="true"></i>
+    </a>
+  </li>
+  {% endif %}
 </ul>
 
 <div class="row">

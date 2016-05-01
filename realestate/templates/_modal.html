@@ -1,8 +1,8 @@
-{% macro modal(title, launch_text="Add new", primary_button_text="OK!", form=False, show=False, _id="myModal", link_only=False) -%}
+{% macro modal(title, launch_text="Add new", primary_button_text="OK!", form=False, show=False, _id="myModal", link_only=False, disabled=False) -%}
 {% if link_only %}
 <a data-toggle="modal" data-target="#{{_id}}" href="">{{ launch_text }}</a>
 {% else %}
-<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#{{_id}}">
+<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#{{_id}}" {% if disabled %} disabled{% endif %}>
   {{ launch_text }}
 </button>
 {% endif %}

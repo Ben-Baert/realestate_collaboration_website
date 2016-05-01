@@ -25,9 +25,3 @@ Feature: As the website owner, I want all pages of the site protected
         And I will see links to appointments
         And I will see a link to post a new house
 
-        
-
-
-
-
-

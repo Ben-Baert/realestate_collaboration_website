@@ -7,7 +7,7 @@ from realestate.models import (BaseModel,
                                RealestateInformationCategory,
                                UserNotAvailableError,
                                DoesNotExist)
-from .criteria import criteria_list
+from .criteria_funcs import criteria_list
 
 
 @app.before_first_request

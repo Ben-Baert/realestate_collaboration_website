@@ -7,7 +7,7 @@ import datetime
 from time import sleep
 from functools import wraps
 from selenium.webdriver.common.keys import Keys
-import logging
+import twiggy
 
 
 class HouseSoldError(Exception):
@@ -38,6 +38,7 @@ class RealoSearch(DriverBase):
                  min_yearbuilt=1970,
                  max_age=7):
         super().__init__()
+        self.log = twiggy.log.name("RealoSearch")
         min_date = (datetime.datetime.now() -
                     datetime.timedelta(days=max_age))
         min_date = min_date.strftime("%Y-%m-%d")
@@ -54,7 +55,7 @@ class RealoSearch(DriverBase):
         url += "&yearbuiltMin={}".format(min_yearbuilt)
         url += "&firstListing={}".format(min_date)
         self.url = url
-        logging.info("Scraping " + self.url + " for houses links.")
+        self.log.info("Scraping " + self.url + " for houses links.")
         self.driver.get(self.url)
         self.driver.find_element_by_css_selector("li.view-switch-item.list").click()
 
@@ -63,7 +64,7 @@ class RealoSearch(DriverBase):
             """
             li.component-estate-list-grid-item  > div > div:nth-child(2) > a.link
             """):
-            logging.debug("Found " + link.get_attribute("href"))
+            self.log.debug("Found " + link.get_attribute("href"))
             yield link.get_attribute("href")
         try:
             self.next_page()
@@ -87,22 +88,20 @@ class RealoSearch(DriverBase):
 class Realo(DriverBase):
     def __init__(self, url):
         if "realo" not in url:
+            log.error("A non-realo url was entered: {}".format(url))
             raise ValueError("Url must be a realo url")
         super().__init__()
         self.url = url
+        self.log = twiggy.log.name("Realo").fields(url=url)
         self.driver.get(self.url)
         self.picture_count = self.number_of_pictures()
 
     def carousel_method(func):
         @wraps(func)
         def inner(self, *args, **kwargs):
-            self.driver.get_screenshot_as_file("beforefirstclick.png")
             self.click_on_carousel()
-            self.driver.get_screenshot_as_file("afterfirstclick.png")
             result = func(self, *args, **kwargs)
-            self.driver.get_screenshot_as_file("beforesecondclick.png")
             self.click_on_carousel()
-            self.driver.get_screenshot_as_file("aftersecondclick.png")
             return result
         return inner
 
@@ -168,17 +167,20 @@ class Realo(DriverBase):
                          > span
                          """).text)
         except:
-            print("No address on " + self.url)
+            self.log.debug("No address")
 
     def lat_lng(self):
-        return tuple(float(x) for x in ast.literal_eval(
-                        self
-                        .driver
-                        .find_element_by_css_selector(
-                            """
-                            #mediaViewer
-                            """)
-                        .get_attribute('data-latlng')))
+        try:
+            return tuple(float(x) for x in ast.literal_eval(
+                            self
+                            .driver
+                            .find_element_by_css_selector(
+                                """
+                                #mediaViewer
+                                """)
+                            .get_attribute('data-latlng')))
+        except:
+            self.log.debug("No lat/lng information")
 
     def price(self):
         try:
@@ -205,9 +207,9 @@ class Realo(DriverBase):
         for item in (self
                      .driver
                      .find_elements_by_css_selector(
-                      """
-                      .basic-details > div > div
-                      """)):
+                        """
+                        .basic-details > div > div
+                        """)):
             title = item.find_element_by_css_selector(".title")
             if title.text.lower() == "bewoonbaar":
                 inhabitable = int(item
@@ -226,19 +228,22 @@ class Realo(DriverBase):
         return inhabitable, total
 
     def information(self):
-        for item in (self
-                     .driver
-                     .find_elements_by_css_selector(
-                        """
-                        #container
-                        > div
-                        > div.col.col-2-3.left.col-md-10.col-sm-12.push-md-1.col-xs-12
-                        > div
-                        > div.module.module-details
-                        > ul
-                        > li
-                        """)):
-            yield item.text.split("\n")
+        try:
+            for item in (self
+                         .driver
+                         .find_elements_by_css_selector(
+                            """
+                            #container
+                            > div
+                            > div.col.col-2-3.left.col-md-10.col-sm-12.push-md-1.col-xs-12
+                            > div
+                            > div.module.module-details
+                            > ul
+                            > li
+                            """)):
+                yield item.text.split("\n")
+        except:
+            self.log.debug("No information")
 
     def features(self):
         try:
@@ -249,6 +254,7 @@ class Realo(DriverBase):
                             .tags
                             """))
         except NoSuchElementException:
+            self.log.debug("No features")
             return []
         return (feature.text.title()
                 for feature in features.find_elements_by_css_selector("li"))
@@ -261,6 +267,7 @@ class Realo(DriverBase):
                 > p:nth-child(4)
                 """).text
         except NoSuchElementException:
+            self.log.debug("No description found")
             return None
 
     @carousel_method
@@ -272,7 +279,7 @@ class Realo(DriverBase):
             > a
             > img
             """)
-        print(len(images_elements))
+        self.log.debug(str(len(images)) + " scraped from thumbnail pictures")
         for image in images_elements:
             url = image.get_attribute('src')
             print(url)
@@ -284,19 +291,18 @@ class Realo(DriverBase):
             text = self.driver.find_element_by_css_selector(".numbers").text
             return int(re.search(r"(\d+)$", text).group(1))
         except:
-            print("No pictures on " + self.url)
+            self.log.debug("No main pictures found")
             return 0
-
 
     @carousel_method
     def main_pictures(self):
         images = SortedSet()
-        for _ in range(self.picture_count):# - 1):
+        for _ in range(self.picture_count):
             for img in self.driver.find_elements_by_css_selector("img.pswp__img"):
                 url = img.get_attribute("src")
                 images.add(url)
             elem = self.driver.find_element_by_css_selector(".pswp__container")
             elem.send_keys(Keys.ARROW_RIGHT)
             sleep(0.5)
-        print(str(len(images)) + " in main pictures")
+        self.log.debug(str(len(images)) + " scraped")
         return images

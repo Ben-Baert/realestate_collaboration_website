@@ -36,5 +36,4 @@ from .hooks import *
 from .controllers import *
 from .filters import *
 from .celery import *
-from .criteria import *
 from .setup import *

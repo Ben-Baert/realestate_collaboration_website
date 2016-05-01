@@ -20,8 +20,10 @@ from playhouse.hybrid import hybrid_method
 from playhouse.hybrid import hybrid_property
 from realestate import bcrypt
 from .utils import to_snakecase
-import realestate.criteria
+import realestate.criteria_funcs
 from walrus import Database
+from redis import Redis
+import re
 
 """
 Note on terminology:
@@ -29,6 +31,8 @@ Note on terminology:
     to represent any house or piece of land.
     In strings, the term 'property' is used.
 """
+
+r = Redis()
 
 database = SqliteExtDatabase('houses.db')
 
@@ -137,9 +141,13 @@ class User(BaseModel, UserMixin):
                                                        realestate=realestate_id)
         review.status = status
         review.save()
-        #if self.cached_queue[0] == realestate_id:
-        #self.cached_queue.popleft()
-        #self.cached_queue.remove(house_id)
+        r.lrem("realestate:" + str(self._id) + ":queue", realestate_id, num=1)
+
+    def undo_review(self, realestate_id):
+        review = UserRealestateReview.get(UserRealestateReview.realestate == realestate_id &
+                                          UserRealestateReview.user == self._id)
+        review.delete_instance()
+        self.cached_queue.prepend(realestate_id)
 
 
 class RealestateCriterion(BaseModel):
@@ -263,14 +271,19 @@ class Realestate(BaseModel):
     def __repr__(self):
         return self.address
 
+    @hybrid_property
+    def has_full_address(self):
+        return bool(re.match(r'[\w\s\']+\s\d{1,4},\s\d{4}[\w\s\']+', self.address))
+
     @hybrid_method
     def distance_to(self, lat, lng):
         return vincenty((self.lat, self.lng), (lat, lng))
 
-    @hybrid_method
+    @hybrid_property
     def nearby_properties(self):
         pass
 
+    @hybrid_property
     def appointment_proposals(self):
         pass
 
@@ -513,6 +526,7 @@ class Realestate(BaseModel):
 class UserRealestateReview(BaseModel):
     user = ForeignKeyField(User, related_name='reviewed_realestate')
     realestate = ForeignKeyField(Realestate, related_name='reviews')
+    dt = DateTimeField(default=datetime.now())
     status = CharField(choices=[('rejected', 'Rejected'),
                                 ('unsure', 'Unsure'),
                                 ('accepted', 'Accepted')], null=True)
@@ -659,7 +673,7 @@ class RealestateCriterionScore(BaseModel):
         if not self.builtin:
             return
         try:
-            self.defaultscore, self.defaultcomment = getattr(realestate.criteria, self.short)(self.realestate)
+            self.defaultscore, self.defaultcomment = getattr(realestate.criteria_funcs, self.short)(self.realestate)
             self.save()
         except AttributeError as e:
             raise
