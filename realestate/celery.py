@@ -1,6 +1,7 @@
 from peewee import IntegrityError
 from celery import Celery, Task
 from realestate import app
+from datetime import timedelta
 from flask import has_request_context, request, make_response
 from .models import (Realestate,
                      RealestateInformationCategory,
@@ -32,7 +33,7 @@ class RequestContextTask(Task):
     #: Name of the additional parameter passed to tasks
     #: that contains information about the original Flask request context.
     CONTEXT_ARG_NAME = '_flask_request_context'
-    
+
     def __call__(self, *args, **kwargs):
         """Execute task code with given arguments."""
         call = lambda: super(RequestContextTask, self).__call__(*args, **kwargs)
@@ -88,7 +89,7 @@ class RequestContextTask(Task):
 celery.Task = RequestContextTask
 
 
-@celery.task
+@celery.periodic_task(run_every=timedelta(days=1))
 def generate_feed(*args, **kwargs):
     urls = [realestate.realo_url for realestate in Realestate.select()]
     with RealoSearch(*args, **kwargs) as search:
