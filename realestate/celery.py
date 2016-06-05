@@ -89,7 +89,7 @@ class RequestContextTask(Task):
 celery.Task = RequestContextTask
 
 
-@celery.periodic_task(run_every=timedelta(days=1))
+#@celery.periodic_task(run_every=timedelta(days=1))
 def generate_feed(*args, **kwargs):
     urls = [realestate.realo_url for realestate in Realestate.select()]
     with RealoSearch(*args, **kwargs) as search:

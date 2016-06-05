@@ -18,7 +18,7 @@ app.url_map.converters['list'] = ListConverter
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-CsrfProtect(app)
+csrf = CsrfProtect(app)
 
 bcrypt = Bcrypt(app)
 

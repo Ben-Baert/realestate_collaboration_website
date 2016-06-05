@@ -20,7 +20,13 @@
                     <h5>{{ realestate.address }}</h5>
                 </a>
                 <a href="">Edit address</a>
-                <small>{{realestate.realestate_type | title}} added on {{ realestate.added_on | date }}</small>
+                <small>{{realestate.realestate_type | title}} added on {{ realestate.added_on | date }}
+                </small>
+                <small>
+                    <a href="{{ url_for('mark_as_sold', _id=realestate._id) }}">
+                        Mark as sold
+                    </a>({{realestate.sold}})
+                </small>
             </div>
             <div class="col-md-1">
                 <div class="row">

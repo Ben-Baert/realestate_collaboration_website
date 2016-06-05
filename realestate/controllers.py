@@ -12,7 +12,7 @@ from flask.ext.login import (login_required,
                              current_user,
                              logout_user,
                              current_app)
-from realestate import app
+from realestate import app, csrf
 from .forms import (LoginForm,
                     RealestateForm,
                     SettingsForm,
@@ -146,6 +146,27 @@ def user(_id):
     return render_template("baseform.html", form=form)
 
 
+@csrf.exempt
+@app.route('/post_new_realestate/', methods=["POST"])
+def post_new_realestate():
+    new_realestate = request.get_json()
+    auth = request.authorization
+    if not (auth or auth.username == "cron" or auth.password == "hello"):
+        abort(401)
+    for key, value in new_realestate.items():
+        return value
+
+
+@app.route('/mark_as_sold/<int:_id>')
+@login_required
+def mark_as_sold(_id):
+    re = Realestate.get(Realestate._id == _id)
+    re.sold = True
+    re.save()
+    flash("The property in {} has been marked as sold!".format(re.address))
+    return redirect(url_for('properties'))
+
+
 @app.route('/generate_feed/<int:max_age>/')
 @app.route('/generate_feed/', defaults={'max_age': 2})
 @admin_required
@@ -235,7 +256,7 @@ def undo_review(_id):
 @login_required
 def properties(categories):
     page_nr = int(request.args.get('page') or 1)
-    realestate = Realestate.not_rejected().where(Realestate.realestate_type << categories)
+    realestate = Realestate.not_rejected().where(Realestate.realestate_type << categories & ~Realestate.sold)
     total_nr_of_pages = realestate.count() // 12 + 1
     current_realestate = realestate#.paginate(page_nr, 12)
     previous_page = page_nr - 1 if page_nr > 1 else None
@@ -294,7 +315,6 @@ def realestate_detail(_id):
 
     if criterionscore_form.validate_on_submit():
         for name, score in criterionscore_form.data.items():
-            print(score)
             if score is "":
                 continue
             criterion = RealestateCriterion.get(name=name)
@@ -308,8 +328,6 @@ def realestate_detail(_id):
             criterionscore.save()
         flash('Criteria updated')
         return redirect(url_for('realestate_detail', _id=_id))
-
-
 
     if appointment_form.validate_on_submit():
         appointment = appointment_form.create_object(
@@ -328,7 +346,6 @@ def realestate_detail(_id):
                            message_form=message_form,
                            appointment_form=appointment_form,
                            information_form=information_form)
-
 
 @app.route('/notification/<int:_id>/')
 def notification(_id):
