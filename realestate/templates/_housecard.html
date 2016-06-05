@@ -14,6 +14,7 @@
         {{ house.price | price }}</br>
         Rating: {{ house.score }}%</br>
         <span data-toggle="tooltip" data-placement="bottom" title="{{ house.status_details }}" class="label label-{% if house.status == 'accepted' %}success{% elif house.status == 'rejected' %}danger{% elif house.status == 'controversial' %}warning{% elif house.status == 'pending' %}default{% endif %}">{{ house.status | title }}</span>
+        <a href="{{url_for('mark_as_sold', _id=house._id)}}">Mark as sold</a>
     </p>
     </div>
 </div>
