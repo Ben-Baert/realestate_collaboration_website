@@ -1,3 +1,4 @@
+import json
 from peewee import IntegrityError
 from celery import Celery, Task
 from realestate import app
@@ -101,8 +102,8 @@ def generate_feed(*args, **kwargs):
 
 @celery.task
 @database.atomic()
-def add_from_json(json_object):
-    r = json.parse(json_object)
+def add_from_json(r):
+    r = json.loads(r)
     urls = [realestate.realo_url for realestate in Realestate.select()]
     if r["realo_url"] in urls:
         return
