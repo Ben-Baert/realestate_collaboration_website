@@ -1,3 +1,4 @@
+import os
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 import re
@@ -9,8 +10,8 @@ from functools import wraps
 from selenium.webdriver.common.keys import Keys
 import twiggy
 
-
-twiggy.quick_setup(file="logs/realo_scraper.log")
+HOME = os.environ.get('HOME', '.')
+twiggy.quick_setup(file=os.path.join(HOME, "logs/realo_scraper.log"))
 
 
 class HouseSoldError(Exception):
