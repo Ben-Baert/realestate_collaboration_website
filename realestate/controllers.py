@@ -151,7 +151,7 @@ def user(_id):
 @csrf.exempt
 @app.route('/post_new_realestate/', methods=["POST"])
 def post_new_realestate():
-    new_realestate = json.loads(request.get_json())
+    new_realestate = request.get_json()
     auth = request.authorization
     if not (auth or auth.username == "cron" or auth.password == "hello"):
         abort(401)
@@ -213,13 +213,16 @@ def settings():
         return redirect(url_for('houses'))
     return render_template('baseform.html', form=form)
 
+
 @app.route('/prepare_queue/')
 @admin_required
 def prepare_queue():
     prepare_caches()
     return "preparing caches..."
 
+
 @app.route('/queue/')
+@login_required
 def queue():
     try:
         realestate_id = current_user.cached_queue[0]

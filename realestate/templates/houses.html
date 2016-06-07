@@ -1,16 +1,24 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="row">
+<!--<div class="row">
         <div class="col-md-12">
             {% call _modal.modal(title="Add new property", launch_text="Add new property", form=True) %}
                 {{ _form.render(form, action_url=url_for('houses')) }}
             {% endcall %}
         </div>   
-    </div>
+    </div> -->
+    {% if realestate %}
     <div class="row">
         <div class="col-md-12">
             {% include "houses_list.html" %}
         </div>
     </div>
+    {% else %}
+    <div class="row">
+        <div class="col-md-12">
+            No properties yet!
+        </div>
+    </div>
+    {% endif %}
 {% endblock %}
