@@ -6,7 +6,8 @@ from flask import (redirect,
                    flash,
                    # g,
                    render_template,
-                   abort)
+                   abort,
+                   jsonify)
 from peewee import DoesNotExist, SelectQuery, IntegrityError
 from flask.ext.login import (login_required,
                              login_user,
@@ -37,7 +38,7 @@ from .models import (User,
                      UserRealestateReview,
                      fn,
                      cache)
-from .celery import add_realo_realestate, generate_feed, prepare_caches
+from .celery import add_realo_realestate, generate_feed, prepare_caches, add_from_json
 from datetime import datetime
 
 
@@ -154,9 +155,15 @@ def post_new_realestate():
     auth = request.authorization
     if not (auth or auth.username == "cron" or auth.password == "hello"):
         abort(401)
-    for key, value in new_realestate.items():
-        return value
+    add_from_json.delay(new_realestate)
+    for key, value in json.loads(new_realestate).items():
+        print(value)
+    return jsonify({"status_code": 200})
 
+@app.route('/prepare_cache/')
+def prepare_cache():
+    prepare_caches.delay()
+    return jsonify({"status_code": 200})
 
 @app.route('/mark_as_sold/<int:_id>')
 @login_required

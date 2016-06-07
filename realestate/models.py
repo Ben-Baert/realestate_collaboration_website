@@ -349,7 +349,7 @@ class Realestate(BaseModel):
 
     @classmethod
     def unreviewed_by(cls, user):
-        return cls.select().where(~(cls._id << cls.reviewed(user)))
+        return cls.select().where(~(cls._id << cls.reviewed(user)) & ~cls.sold)
 
     @hybrid_method
     def accepted_by(self, user):
