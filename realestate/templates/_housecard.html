@@ -4,10 +4,8 @@
 <div class="card" id="card-{{house._id}}">          
     <div class="overlay">
     </div>
-    {% if house.thumbnail_pictures %}
-        <img class="card-img-top" src="{{house.thumbnail_pictures[0]}}">
+    <img class="card-img-top" src="{{house.thumbnail_pictures[0] | thumbnail_image}}">
         <!--{{ carousel.render(house.thumbnail_pictures, _id=house._id, indicators=False) }}-->
-    {% endif %}
     <div class="card-block">
     <p class="card-text">
         <h4 class="card-title">{{ house.town | truncate(15)}}</h4>

@@ -1,3 +1,4 @@
+import requests
 from flask import Markup
 from operator import attrgetter
 from realestate import app
@@ -40,3 +41,15 @@ def date(d):
         return d.strftime("%d/%m/%Y")
     except AttributeError:
         return "?"
+
+@app.template_filter('thumbnail_image')
+def thumbnail_image(s):
+    try:
+        r = requests.head(s)
+    except (requests.exceptions.ConnectionError, IndexError):
+        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w=217&h=163"
+    if r.ok:
+        return s
+    else:
+        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w=217&h=163"
+        
