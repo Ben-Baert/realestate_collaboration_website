@@ -10,7 +10,7 @@
   {% endif %}
   <div class="carousel-inner" role="listbox">
     <div class="carousel-item active">
-      <img class="img-responsive center-block" src="{{pictures[0]}}" alt="">
+      <img class="img-responsive center-block" src="{{pictures[0] | main_image}}" alt="">
     </div>
     {% for picture in pictures[1:] %}
     <div class="carousel-item">

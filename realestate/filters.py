@@ -42,14 +42,22 @@ def date(d):
     except AttributeError:
         return "?"
 
-@app.template_filter('thumbnail_image')
-def thumbnail_image(s):
+def image_filter(s, width, height):
     try:
         r = requests.head(s)
-    except (requests.exceptions.ConnectionError, IndexError):
-        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w=217&h=163"
+    except (requests.exceptions.ConnectionError, requests.exceptions.MissingSchema, IndexError):
+        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w={}&h={}".format(str(width), str(height))
     if r.ok:
         return s
     else:
-        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w=217&h=163"
+        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w={}&h={}".format(str(width), str(height))
+
+
+@app.template_filter('thumbnail_image')
+def thumbnail_image(s):
+    return image_filter(s, 217, 163)
         
+
+@app.template_filter('main_image')
+def main_image(s):
+    return image_filter(s, 1200, 800)
