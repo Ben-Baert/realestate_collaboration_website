@@ -1,3 +1,4 @@
+import json
 from functools import wraps
 from flask import (redirect,
                    request,
@@ -149,7 +150,7 @@ def user(_id):
 @csrf.exempt
 @app.route('/post_new_realestate/', methods=["POST"])
 def post_new_realestate():
-    new_realestate = request.get_json()
+    new_realestate = json.loads(request.get_json())
     auth = request.authorization
     if not (auth or auth.username == "cron" or auth.password == "hello"):
         abort(401)
