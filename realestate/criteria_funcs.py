@@ -83,7 +83,7 @@ def epc(house):
                 applies_to=['house'])
 @score
 def cadastral_income(house):
-    return (int(int(house.cadastral_income.replace(".", "")[1:]) < 745),
+    return (int(int(house.cadastral_income.replace(".", "")[1:]) <= 745),
             house.cadastral_income)
 
 
