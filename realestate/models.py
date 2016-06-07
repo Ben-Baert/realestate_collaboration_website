@@ -24,6 +24,7 @@ import realestate.criteria_funcs
 from walrus import Database
 from redis import Redis
 import re
+from config import REDIS_PORT, REDIS_PASSWORD
 
 """
 Note on terminology:
@@ -32,7 +33,7 @@ Note on terminology:
     In strings, the term 'property' is used.
 """
 
-r = Redis()
+r = Redis(port=REDIS_PORT, auth=REDIS_PASSWORD)
 
 database = SqliteExtDatabase('houses.db')
 

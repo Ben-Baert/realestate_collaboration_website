@@ -27,7 +27,7 @@ def google_maps_request(origin, destination, t):
     r = r.json()
     try:
         return r['rows'][0]['elements'][0][t]['value'], r['rows'][0]['elements'][0][t]['text']
-    except KeyError:
+    except (KeyError, IndexError):
         return None
 
 
