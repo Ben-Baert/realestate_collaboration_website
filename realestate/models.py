@@ -33,7 +33,7 @@ Note on terminology:
     In strings, the term 'property' is used.
 """
 
-r = Redis(port=REDIS_PORT, auth=REDIS_PASSWORD)
+r = Redis(port=REDIS_PORT, password=REDIS_PASSWORD)
 
 database = SqliteExtDatabase('houses.db')
 
