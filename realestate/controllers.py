@@ -119,6 +119,9 @@ def login():
             flash('The password you entered is incorrect')
     return render_template('login.html', form=form)
 
+@app.route('/urls/')
+def urls():
+    return jsonify([r.realo_url for r in Realestate.select()])
 
 @app.route('/logout/')
 @login_required
