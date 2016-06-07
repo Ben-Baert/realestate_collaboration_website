@@ -43,14 +43,12 @@ def date(d):
         return "?"
 
 def image_filter(s, width, height):
+    replacement = "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w={}&h={}".format(str(width), str(height)) 
     try:
         r = requests.head(s)
     except (requests.exceptions.ConnectionError, requests.exceptions.MissingSchema, IndexError):
-        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w={}&h={}".format(str(width), str(height))
-    if r.ok:
-        return s
-    else:
-        return "https://placeholdit.imgix.net/~text?txtsize=33&txt=350%C3%97150&w={}&h={}".format(str(width), str(height))
+        return replacement 
+    return s if r.ok else replacement
 
 
 @app.template_filter('thumbnail_image')
