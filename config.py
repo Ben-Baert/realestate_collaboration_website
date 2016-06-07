@@ -1,6 +1,6 @@
 import os
 
-
+REALESTATE_ROOT = os.environ.get('realestateroot', '.')
 SECRET_KEY = 'really_secret_t'
 WTF_CSRF_SECRET_KEY = 'really_secret_too'
 MAIL_SERVER = 'smtp.googlemail.com'

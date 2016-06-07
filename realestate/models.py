@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from functools import total_ordering
 from flask.ext.login import UserMixin, current_user
@@ -24,7 +25,7 @@ import realestate.criteria_funcs
 from walrus import Database
 from redis import Redis
 import re
-from config import REDIS_PORT, REDIS_PASSWORD
+from config import REDIS_PORT, REDIS_PASSWORD, REALESTATE_ROOT
 
 """
 Note on terminology:
@@ -35,9 +36,9 @@ Note on terminology:
 
 r = Redis(port=REDIS_PORT, password=REDIS_PASSWORD)
 
-database = SqliteExtDatabase('houses.db')
+database = SqliteExtDatabase(os.path.join(REALESTATE_ROOT, 'houses.db'))
 
-cache = Database()
+cache = Database(port=REDIS_PORT, password=REDIS_PASSWORD)
 
 
 class UserNotAvailableError(Exception):
