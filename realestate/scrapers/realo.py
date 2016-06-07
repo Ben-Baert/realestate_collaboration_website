@@ -10,7 +10,7 @@ from functools import wraps
 from selenium.webdriver.common.keys import Keys
 import twiggy
 
-HOME = os.environ.get('HOME', '.')
+HOME = os.environ.get('REALESTATE_ROOT', '.')
 twiggy.quick_setup(file=os.path.join(HOME, "logs/realo_scraper.log"))
 
 
