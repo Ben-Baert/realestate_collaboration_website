@@ -40,6 +40,7 @@ from .models import (User,
                      cache)
 from .celery import add_realo_realestate, generate_feed, prepare_caches, add_from_json
 from datetime import datetime
+from config import CRON_PASSWORD
 
 
 def get_object_or_404(query_or_model, *query):
@@ -59,6 +60,7 @@ def admin_required(func):
         return func(*args, **kwargs)
     return decorated_view
 
+
 def ownership_required(model):
     def outer(func):
         @wraps(func)
@@ -70,6 +72,16 @@ def ownership_required(model):
             return func(*args, **kwargs)
         return inner
     return outer
+
+
+def cron_required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        auth = request.authorization
+        if not (auth or auth.username == "cron" or auth.password == CRON_PASSWORD):
+            return abort(401)
+        return func(*args, **kwargs)
+    return decorated_view
 
 
 ERROR_MESSAGES = {
@@ -86,6 +98,7 @@ def base_error_handler(e):
         message = "Something went wrong"
     flash("{}. You have been redirected to the home page.".format(message))
     return redirect(url_for('home') or '/')
+
 
 for key in ERROR_MESSAGES.keys():
     app.register_error_handler(key, base_error_handler)
@@ -119,9 +132,11 @@ def login():
             flash('The password you entered is incorrect')
     return render_template('login.html', form=form)
 
+
 @app.route('/urls/')
 def urls():
     return jsonify([r.realo_url for r in Realestate.select()])
+
 
 @app.route('/logout/')
 @login_required
@@ -153,20 +168,22 @@ def user(_id):
 
 @csrf.exempt
 @app.route('/post_new_realestate/', methods=["POST"])
+@cron_required
 def post_new_realestate():
     new_realestate = request.get_json()
-    auth = request.authorization
-    if not (auth or auth.username == "cron" or auth.password == "hello"):
-        abort(401)
+
     add_from_json.delay(new_realestate)
     for key, value in json.loads(new_realestate).items():
         print(value)
     return jsonify({"status_code": 200})
 
+
 @app.route('/prepare_cache/')
+@cron_required
 def prepare_cache():
     prepare_caches.delay()
     return jsonify({"status_code": 200})
+
 
 @app.route('/mark_as_sold/<int:_id>')
 @login_required
@@ -204,6 +221,7 @@ def information_detail(_id):
         form.edit_object(item)
         return redirect(url_for('information'))
     return render_template("baseform.html", form=form)
+
 
 
 @app.route('/settings/', methods=["GET", "POST"])
@@ -253,6 +271,7 @@ def queue():
 
 
 @app.route('/review/')
+@login_required
 def review():
     _id, status = int(request.args.get('_id')), request.args.get('status')
     current_user.review_property(_id, status)
@@ -260,6 +279,7 @@ def review():
 
 
 @app.route('/undo_review/<int:_id>/')
+@login_required
 def undo_review(_id):
     current_user.undo_review(_id)
     return redirect(url_for('queue'))
@@ -361,7 +381,9 @@ def realestate_detail(_id):
                            appointment_form=appointment_form,
                            information_form=information_form)
 
+
 @app.route('/notification/<int:_id>/')
+@ownership_required(Notification)
 def notification(_id):
     url_endpoints = {'realestate': 'realestate_detail',
                      'message': 'message',
@@ -399,6 +421,7 @@ def criteria():
 
 
 @app.route('/criterion/<int:_id>/', methods=["GET", "POST"])
+@login_required
 def criterion(_id):
     criterion = RealestateCriterion.get(_id=_id)
     form = RealestateCriterionForm(obj=criterion)
@@ -453,3 +476,4 @@ def message(_id):
 
     return render_template("baseform.html",
                             form=message_form)
+

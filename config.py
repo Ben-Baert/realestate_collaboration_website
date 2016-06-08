@@ -1,8 +1,10 @@
 import os
 
-REALESTATE_ROOT = os.environ.get('realestateroot', '.')
-SECRET_KEY = 'really_secret_t'
-WTF_CSRF_SECRET_KEY = 'really_secret_too'
+
+CRON_PASSWORD = os.environ.get('CRON_PASSWORD', 'hello') 
+REALESTATE_ROOT = os.environ.get('REALESTATE_ROOT', '.')
+SECRET_KEY = os.environ.get('REALESTATE_SECRET_KEY', 'secret_key')
+WTF_CSRF_SECRET_KEY = os.environ.get('REALESTATE_WTF_SECRET_KEY', 'secret_key')
 MAIL_SERVER = 'smtp.googlemail.com'
 MAIL_PORT = 587
 MAIL_USE_TLS = True
