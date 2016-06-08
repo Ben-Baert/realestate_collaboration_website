@@ -25,7 +25,7 @@ import realestate.criteria_funcs
 from walrus import Database
 from redis import Redis
 import re
-from config import REDIS_PORT, REDIS_PASSWORD, REALESTATE_ROOT
+from config import REDIS_PORT, REDIS_PASSWORD, ROOT
 
 """
 Note on terminology:
