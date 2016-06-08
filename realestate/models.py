@@ -36,7 +36,7 @@ Note on terminology:
 
 r = Redis(port=REDIS_PORT, password=REDIS_PASSWORD)
 
-database = SqliteExtDatabase(os.path.join(REALESTATE_ROOT, 'houses.db'))
+database = SqliteExtDatabase(os.path.join(ROOT, 'houses.db'))
 
 cache = Database(port=REDIS_PORT, password=REDIS_PASSWORD)
 
