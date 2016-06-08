@@ -38,7 +38,7 @@ from .models import (User,
                      UserRealestateReview,
                      fn,
                      cache)
-from .celery import add_realo_realestate, generate_feed, prepare_caches, add_from_json
+from .celery import prepare_caches, add_from_json
 from datetime import datetime
 from config import CRON_PASSWORD
 
