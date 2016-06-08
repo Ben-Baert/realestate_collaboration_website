@@ -103,6 +103,7 @@ def generate_feed(*args, **kwargs):
 @celery.task
 @database.atomic()
 def add_from_json(r):
+    r = json.loads(r)
     urls = [realestate.realo_url for realestate in Realestate.select()]
     if r["realo_url"] in urls:
         return
