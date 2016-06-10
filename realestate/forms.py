@@ -2,7 +2,7 @@ import re
 from string import (ascii_lowercase,
                     ascii_uppercase)
 from peewee import DoesNotExist
-from flask.ext.login import current_user
+from flask_login import current_user
 from flask_wtf import Form as FlaskForm
 from flask_pagedown.fields import PageDownField
 from wtforms.compat import iteritems

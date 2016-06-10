@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from functools import total_ordering
-from flask.ext.login import UserMixin, current_user
+from flask_login import UserMixin, current_user
 from geopy.distance import vincenty
 from playhouse.sqlite_ext import SqliteExtDatabase
 from playhouse.signals import Model, post_init, post_save

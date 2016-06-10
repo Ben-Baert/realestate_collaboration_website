@@ -1,9 +1,9 @@
 from flask import Flask
 from flask_wtf.csrf import CsrfProtect
-from flask.ext.bcrypt import Bcrypt
-from flask.ext.login import LoginManager
-from flask.ext.bootstrap import Bootstrap
-from flask.ext.mail import Mail, Message
+from flask_bcrypt import Bcrypt
+from flask_login import LoginManager
+from flask_bootstrap import Bootstrap
+from flask_mail import Mail, Message
 from flask_googlemaps import GoogleMaps
 from flask_pagedown import PageDown
 from flaskext.markdown import Markdown

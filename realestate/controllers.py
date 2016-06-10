@@ -9,7 +9,7 @@ from flask import (redirect,
                    abort,
                    jsonify)
 from peewee import DoesNotExist, SelectQuery, IntegrityError
-from flask.ext.login import (login_required,
+from flask_login import (login_required,
                              login_user,
                              current_user,
                              logout_user,
