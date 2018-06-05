@@ -1,13 +1,13 @@
 from realestate import app
-from realestate.models import (BaseModel,
-                               User,
-                               Realestate,
-                               RealestateCriterion,
-                               RealestateCriterionScore,
-                               RealestateInformationCategory,
-                               UserNotAvailableError,
-                               DoesNotExist)
-from .criteria_funcs import criteria_list
+from realestate.models import BaseModel
+from realestate.models import User
+from realestate.models import Realestate
+from realestate.models import RealestateCriterion
+from realestate.models import RealestateCriterionScore
+from realestate.models import RealestateInformationCategory
+from realestate.models import UserNotAvailableError
+from realestate.models import DoesNotExist
+from realestate.criteria_funcs import criteria_list
 
 
 @app.before_first_request
@@ -16,8 +16,7 @@ def setup_database():
         #  cls.drop_table(fail_silently=True)
         cls.create_table(fail_silently=True)
     try:
-        User.get_or_create(username="Ben", password="degeleis2jaaroud")
-        User.get_or_create(username="Melissa", password="degeleis2jaaroud")
+        User.get_or_create(username="Ben", password="randompass")
     except UserNotAvailableError:
         pass
 

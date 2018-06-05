@@ -14,21 +14,43 @@ class ListConverter(BaseConverter):
 
 
 def google_maps_url(origin, destination):
-    return "http://maps.googleapis.com/maps/api/distancematrix/json?origins={}&destinations={}&mode=driving&language=en-EN&sensor=false".format(origin, destination)
+    url = "http://maps.googleapis.com/maps/api/distancematrix/json?"
+    url += "origins={}".format(origin)
+    url += "&destinations={}".format(destination)
+    url += "&mode=driving"
+    url += "&language=en-EN"
+    url += "&sensor=false"
+    return url
 
 
-def google_maps_request(origin, destination, t):
-    url = google_maps_url(origin, destination)
+def extract_value_from_google_maps_api_request(request_json, required_info):
     try:
-        r = requests.get(url)
+        return request_json['rows'][0]['elements'][0][required_info]['value']
+    except (KeyError, IndexError):
+        return None  # invalid format
+
+
+def extract_text_from_google_maps_api_request(request_json, required_info):
+    try:
+        return request_json['rows'][0]['elements'][0][required_info]['text']
+    except (KeyError, IndexError):
+        return None  # invalid format
+
+
+def google_maps_request(origin, destination, required_info):
+    url = google_maps_url(origin, destination)
+
+    try:
+        request = requests.get(url)
     except requests.exceptions.ConnectionError:
         return None
-    print(r.request.url)
-    r = r.json()
-    try:
-        return r['rows'][0]['elements'][0][t]['value'], r['rows'][0]['elements'][0][t]['text']
-    except (KeyError, IndexError):
-        return None
+
+    request_json = request.json()
+
+    value = extract_value_from_google_maps_api_request(request_json)
+    text = extract_text_from_google_maps_api_request(request_json)
+
+    return value, text
 
 
 def travel_time(origin, destination):
@@ -58,8 +80,15 @@ def snake_to_camel(name):
 # TOTAL COST AND LOAN
 
 
-def registration_rights(house_price, cadastral_income, nr_of_children, social_loan, social_house):
+def registration_rights(
+    house_price,
+    cadastral_income,
+    nr_of_children,
+    social_loan,
+    social_house):
     return house_price * 0.05 if cadastral_income <= 745 else house_price * 0.125
+    # requires further work
+
 
 def total_cost(house_price):
     pass

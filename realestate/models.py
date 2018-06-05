@@ -1,31 +1,36 @@
 import os
+import re
 from datetime import datetime
 from functools import total_ordering
-from flask_login import UserMixin, current_user
+from flask_login import UserMixin
+from flask_login import current_user
 from geopy.distance import vincenty
 from playhouse.sqlite_ext import SqliteExtDatabase
-from playhouse.signals import Model, post_init, post_save
-from peewee import (CharField,
-                    IntegrityError,
-                    BooleanField,
-                    IntegerField,
-                    TextField,
-                    FloatField,
-                    ForeignKeyField,
-                    DateTimeField,
-                    DateField,
-                    PrimaryKeyField,
-                    fn,
-                    DoesNotExist)
+from playhouse.signals import Model
+from playhouse.signals import post_init
+from playhouse.signals import post_save
+from peewee import CharField
+from peewee import IntegrityError
+from peewee import BooleanField
+from peewee import IntegerField
+from peewee import TextField
+from peewee import FloatField
+from peewee import ForeignKeyField
+from peewee import DateTimeField
+from peewee import DateField
+from peewee import PrimaryKeyField
+from peewee import fn
+from peewee import DoesNotExist
 from playhouse.hybrid import hybrid_method
 from playhouse.hybrid import hybrid_property
 from realestate import bcrypt
-from .utils import to_snakecase
+from realestate.utils import to_snakecase
 import realestate.criteria_funcs
 from walrus import Database
 from redis import Redis
-import re
-from config import REDIS_PORT, REDIS_PASSWORD, ROOT
+from config import REDIS_PORT
+from config import REDIS_PASSWORD
+from config import ROOT
 
 """
 Note on terminology:

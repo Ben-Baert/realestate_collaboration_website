@@ -1,5 +1,5 @@
 from realestate import app, login_manager
-from .models import database, User
+from realestate.models import database, User
 
 
 @app.before_request

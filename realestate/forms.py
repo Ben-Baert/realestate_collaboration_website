@@ -1,44 +1,55 @@
 import re
-from string import (ascii_lowercase,
-                    ascii_uppercase)
+
+from string import ascii_lowercase
+from string import ascii_uppercase
+
 from peewee import DoesNotExist
+
 from flask_login import current_user
 from flask_wtf import Form as FlaskForm
 from flask_pagedown.fields import PageDownField
+
 from wtforms.compat import iteritems
-from wtforms.fields import (TextField,
-                            FieldList,
-                            HiddenField,
-                            IntegerField,
-                            DateTimeField,
-                            BooleanField,
-                            SelectField,
-                            FormField,
-                            PasswordField)
-from wtforms.validators import (Required,
-                                Length,
-                                Email,
-                                Optional,
-                                EqualTo,
-                                URL,
-                                NumberRange)
+from wtforms.fields import TextField
+from wtforms.fields import FieldList
+from wtforms.fields import HiddenField
+from wtforms.fields import IntegerField
+from wtforms.fields import DateTimeField
+from wtforms.fields import BooleanField
+from wtforms.fields import SelectField
+from wtforms.fields import FormField
+from wtforms.fields import PasswordField
+
+from wtforms.validators import Required
+from wtforms.validators import Length
+from wtforms.validators import Email
+from wtforms.validators import Optional
+from wtforms.validators import EqualTo
+from wtforms.validators import URL
+from wtforms.validators import NumberRange
+
 from wtforms import ValidationError
+
 from wtforms.form import FormMeta
-from wtfpeewee.orm import (model_form,
-                           ModelConverter)
+
+from wtfpeewee.orm import model_form
+from wtfpeewee.orm import ModelConverter
+
 from wtfpeewee.fields import ModelHiddenField
-from .models import (User,
-                     Realestate,
-                     RealestateCriterion,
-                     Appointment,
-                     UserAvailability,
-                     Message,
-                     RealestateCriterionScore,
-                     RealestateInformation,
-                     RealestateInformationCategory)
-from .utils import (camel_to_snake,
-                    snake_to_camel,
-                    to_snakecase)
+
+from realestate.models import User
+from realestate.models import Realestate
+from realestate.models import RealestateCriterion
+from realestate.models import Appointment
+from realestate.models import UserAvailability
+from realestate.models import Message
+from realestate.models import RealestateCriterionScore
+from realestate.models import RealestateInformation
+from realestate.models import RealestateInformationCategory
+
+from realestate.utils import camel_to_snake
+from realestate.utils import snake_to_camel
+from realestate.utils import to_snakecase
 
 
 class PasswordValidation:
@@ -48,24 +59,24 @@ class PasswordValidation:
     def __call__(self, form, field):
         if len(field.data) < 8:
             raise ValidationError(
-              """
-              Password should be at least 8 characters long
-              """)
+                """
+                Password should be at least 8 characters long
+                """)
         if not any(character in field.data for character in ascii_lowercase):
             raise ValidationError(
-              """
-              Password should contain at least one lowercase letter
-              """)
+                """
+                Password should contain at least one lowercase letter
+                """)
         if not any(character in field.data for character in ascii_uppercase):
             raise ValidationError(
-              """
-              Password should contain at least one uppercase letter
-              """)
+                """
+                Password should contain at least one uppercase letter
+                """)
         if not any(character in field.data for character in "0123456789"):
             raise ValidationError(
-              """
-              Password should contain at least one digit
-              """)
+                """
+                Password should contain at least one digit
+                """)
 
 
 class BaseMeta(FormMeta):
@@ -80,19 +91,22 @@ class RealestateCriterionFormMeta(BaseMeta):
         for criterion in realestate.criteria:
             if criterion.builtin:
                 continue
-            if ((realestate.realestate_type == 'house' and not criterion.applies_to_house) or
-                (realestate.realestate_type == 'land' and not criterion.applies_to_land)):
+            if ((realestate.realestate_type == 'house' and
+                not criterion.applies_to_house) or
+                (realestate.realestate_type == 'land' and
+                not criterion.applies_to_land)):
                 continue
             if not criterion.criterion.dealbreaker:
-                field = IntegerField(criterion.criterion.name,
-                             default=criterion.score,
-                             description=criterion.criterion.formula,
-                             validators=[Optional(), NumberRange(min=0, max=10)])
+                field = IntegerField(
+                    criterion.criterion.name,
+                    default=criterion.score,
+                    description=criterion.criterion.formula,
+                    validators=[Optional(), NumberRange(min=0, max=10)])
             else:
-                field = BooleanField(criterion.criterion.name,
-                                     default=True if criterion.score else False,
-                                     description=criterion.criterion.formula,
-                                     )
+                field = BooleanField(
+                    criterion.criterion.name,
+                    default=True if criterion.score else False,
+                    description=criterion.criterion.formula)
             setattr(cls, criterion.criterion.name, field)
         return BaseMeta.__call__(cls, *args, **kwargs)
 
@@ -100,12 +114,15 @@ class RealestateCriterionFormMeta(BaseMeta):
 class RealestateInformationFormMeta(BaseMeta):
     def __call__(cls, realestate, *args, **kwargs):
         for category in RealestateInformationCategory.select():
-            if ((realestate.realestate_type == 'house' and not category.applies_to_house) or
-                (realestate.realestate_type == 'land' and not category.applies_to_land)):
+            if ((realestate.realestate_type == 'house' and
+                not category.applies_to_house) or
+                (realestate.realestate_type == 'land' and
+                not category.applies_to_land)):
                 continue
             realestate_information, _ = (RealestateInformation
-                                         .get_or_create(category=category._id,
-                                                        realestate=realestate._id))
+                                         .get_or_create(
+                                              category=category._id,
+                                              realestate=realestate._id))
             field = TextField(category.name,
                               default=realestate_information.value)
             setattr(cls, category.short, field)
@@ -134,11 +151,15 @@ class BaseForm(FlaskForm, metaclass=BaseMeta):
         return d
 
 
-class RealestateCriterionScoreForm(BaseForm, metaclass=RealestateCriterionFormMeta):
+class RealestateCriterionScoreForm(
+    BaseForm,
+    metaclass=RealestateCriterionFormMeta):
     pass
 
 
-class RealestateInformationForm(BaseForm, metaclass=RealestateInformationFormMeta):
+class RealestateInformationForm(
+    BaseForm,
+    metaclass=RealestateInformationFormMeta):
     pass
 
 
@@ -159,6 +180,7 @@ converter = ModelConverter(overrides={"password": PasswordField})
 class HiddenHouseConverter(ModelConverter):
     def handle_foreign_key(self, model, field, **kwargs):
         return field.name, ModelHiddenField(model=field.rel_model, **kwargs)
+
 
 house_hidden = HiddenHouseConverter()
 
@@ -181,15 +203,17 @@ class BaseSettingsForm(BaseForm):
             raise ValidationError("Incorrect password")
 
 
-SettingsForm = generate_form(User,
-                             base_class=BaseSettingsForm,
-                             field_args={
-                             "username": dict(validators=[Length(min=3)]),
-                             "password": dict(label="New password (optional)",
-                                              validators=[PasswordValidation(),
-                                                          Optional()]),
-                              "email": dict(validators=[Email()])
-                              })
+SettingsForm = generate_form(
+    User,
+    base_class=BaseSettingsForm,
+    field_args={
+        "username": dict(validators=[Length(min=3)]),
+        "password": dict(label="New password (optional)",
+                         validators=[PasswordValidation(),
+                                     Optional()]),
+        "email": dict(validators=[Email()])
+    })
+
 
 class UnderScoreConverter(ModelConverter):
     def convert(self, model, field, field_args):
@@ -197,22 +221,27 @@ class UnderScoreConverter(ModelConverter):
             field.name = field.name[1:]
         return super().convert(model, field, field_args)
 
+
 underscore_converter = UnderScoreConverter()
 
-RealestateCriterionForm = generate_form(RealestateCriterion, converter=underscore_converter)
+RealestateCriterionForm = generate_form(
+    RealestateCriterion,
+    converter=underscore_converter)
+
 
 converter = ModelConverter(overrides={"password": PageDownField})
 
+
 class MessageForm(BaseForm):
     body = PageDownField()
+
 
 UserAvailabilityForm = generate_form(UserAvailability, exclude=["user"])
 AppointmentForm = generate_form(Appointment, exclude=["realestate"])
 AppointmentsForm = generate_form(Appointment)
 
+RealestateInformationCategoryForm = generate_form(
+    RealestateInformationCategory,
+    converter=underscore_converter)
 
-
-
-RealestateInformationCategoryForm = generate_form(RealestateInformationCategory,
-                                             converter=underscore_converter)
 AdminUserForm = generate_form(User, exclude=["password"])
