@@ -1,44 +1,46 @@
 import json
 from functools import wraps
-from flask import (redirect,
-                   request,
-                   url_for,
-                   flash,
-                   # g,
-                   render_template,
-                   abort,
-                   jsonify)
-from peewee import DoesNotExist, SelectQuery, IntegrityError
-from flask_login import (login_required,
-                             login_user,
-                             current_user,
-                             logout_user,
-                             current_app)
-from realestate import app, csrf
-from .forms import (LoginForm,
-                    RealestateForm,
-                    SettingsForm,
-                    RealestateCriterionForm,
-                    MessageForm,
-                    AppointmentForm,
-                    AppointmentsForm,
-                    RealestateCriterionScoreForm,
-                    RealestateInformationCategoryForm,
-                    AdminUserForm,
-                    RealestateInformationForm)
-from .models import (User,
-                     Realestate,
-                     Notification,
-                     RealestateCriterion,
-                     Message,
-                     Appointment,
-                     RealestateInformation,
-                     RealestateCriterionScore,
-                     RealestateInformationCategory,
-                     UserRealestateReview,
-                     fn,
-                     cache)
-from .celery import prepare_caches, add_from_json
+from flask import redirect
+from flask import request
+from flask import url_for
+from flask import flash
+from flask import render_template
+from flask import abort
+from flask import jsonify
+from peewee import DoesNotExist
+from peewee import SelectQuery
+from flask_login import login_required
+from flask_login import login_user
+from flask_login import current_user
+from flask_login import logout_user
+from flask_login import current_app
+from realestate import app
+from realestate import csrf
+from realestate.forms import LoginForm
+from realestate.forms import RealestateForm
+from realestate.forms import SettingsForm
+from realestate.forms import RealestateCriterionForm
+from realestate.forms import MessageForm
+from realestate.forms import AppointmentForm
+from realestate.forms import AppointmentsForm
+from realestate.forms import RealestateCriterionScoreForm
+from realestate.forms import RealestateInformationCategoryForm
+from realestate.forms import AdminUserForm
+from realestate.forms import RealestateInformationForm
+from realestate.models import User
+from realestate.models import Realestatetate
+from realestate.models import Notification
+from realestate.models import RealestatetateCriterion
+from realestate.models import Message
+from realestate.models import Appointment
+from realestate.models import RealestatetateInformation
+from realestate.models import RealestatetateCriterionScore
+from realestate.models import RealestatetateInformationCategory
+from realestate.models import UserRealestatetateReview
+from realestate.models import fn
+from realestate.models import cache
+from realestate.celery import prepare_caches
+from realestate.celery import add_from_json
 from datetime import datetime
 from config import CRON_PASSWORD
 
@@ -476,4 +478,3 @@ def message(_id):
 
     return render_template("baseform.html",
                             form=message_form)
-
