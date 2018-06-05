@@ -1,21 +1,23 @@
 from manager import Manager
 from realestate import app
-from realestate.models import (Realestate,
-                           UserRealestateReview)
+from realestate.models import UserRealestateReview
 
 manager = Manager()
+
 
 @manager.command
 def run_test_server():
     app.run(debug=True)
 
 
-@manager.arg('property_id', help='The id of the property you want all reviews to be removed for')
+@manager.arg(
+    'property_id',
+    help='The id of the property you want all reviews to be removed for')
 @manager.command
 def remove_user_reviews_for_property(property_id):
     """
     Remove all property reviews associated
-    with a certain property. Useful in case 
+    with a certain property. Useful in case
     a bug caused multiple reviews per user.
     """
     property_reviews_delete_query = (UserRealestateReview
@@ -28,4 +30,3 @@ def remove_user_reviews_for_property(property_id):
 
 if __name__ == '__main__':
     manager.main()
-
