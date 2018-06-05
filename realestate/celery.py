@@ -1,18 +1,17 @@
 import json
 from peewee import IntegrityError
-from celery import Celery, Task
+from celery import Celery
 from realestate import app
-from datetime import timedelta
-from flask import has_request_context, request, make_response
-from .models import (Realestate,
-                     RealestateInformationCategory,
-                     RealestateInformation,
-                     RealestateCriterion,
-                     RealestateCriterionScore,
-                     Feature,
-                     RealestateFeature,
-                     User,
-                     database)
+
+from realestate.models import Realestate
+from realestate.models import RealestateInformationCategory
+from realestate.models import RealestateInformation
+from realestate.models import RealestateCriterion
+from realestate.models import RealestateCriterionScore
+from realestate.models import Feature
+from realestate.models import RealestateFeature
+from realestate.models import User
+from realestate.models import database
 
 
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
@@ -30,21 +29,19 @@ def add_from_json(r):
         inhabitable_area, total_area = r["area"]
         lat, lng = r["coordinates"]
         realestate = Realestate.create(
-                added_on=r["added_on"],
-                realestate_type=r["realestate_type"],
-                seller=r["seller"],
-                address=r["address"],
-                inhabitable_area=inhabitable_area,
-                total_area=total_area,
-                lat=lat,
-                lng=lng,
-                description=r["description"],
-                price=r["price"],
-                realo_url=r["realo_url"],
-                thumbnail_pictures=r["thumbnail_pictures"],
-                main_pictures=r["main_pictures"],
-                )
-        print(realestate.realo_url + " added.")
+            added_on=r["added_on"],
+            realestate_type=r["realestate_type"],
+            seller=r["seller"],
+            address=r["address"],
+            inhabitable_area=inhabitable_area,
+            total_area=total_area,
+            lat=lat,
+            lng=lng,
+            description=r["description"],
+            price=r["price"],
+            realo_url=r["realo_url"],
+            thumbnail_pictures=r["thumbnail_pictures"],
+            main_pictures=r["main_pictures"])
     except IntegrityError:
         return
 
@@ -74,6 +71,4 @@ def prepare_caches():
                               key=lambda x: (-x.score, -x._score))
         for _ in range(len(user.cached_queue)):  # empty current queue; REFACTOR!
             user.cached_queue.pop()
-        #print(user.cached_queue)
         user.cached_queue.extend([x._id for x in cached_queue])  # add new items to queue
-
